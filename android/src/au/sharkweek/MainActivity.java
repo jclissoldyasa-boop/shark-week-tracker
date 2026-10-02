@@ -44,6 +44,9 @@ public class MainActivity extends Activity {
         setSecure(getSharedPreferences("sw", MODE_PRIVATE).getBoolean("secure", true));
         web = new WebView(this);
         web.setBackgroundColor(getColor(R.color.bg));
+        // Last colour theme the page reported, so the bars match from the first frame.
+        String bars = getSharedPreferences("sw", MODE_PRIVATE).getString("bars", "");
+        if (!bars.isEmpty()) applyBars(bars.substring(1), bars.charAt(0) == 'd');
         setContentView(web);
 
         WebSettings s = web.getSettings();
@@ -128,6 +131,24 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!on);
     }
 
+    /** Status and navigation bars in the page's background colour, with icons that stay readable on it. */
+    private void applyBars(String color, boolean dark) {
+        int c;
+        try { c = android.graphics.Color.parseColor(color); } catch (Exception e) { return; }
+        getWindow().setStatusBarColor(c);
+        getWindow().setNavigationBarColor(c);
+        web.setBackgroundColor(c);
+        if (Build.VERSION.SDK_INT >= 30) {
+            int light = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+            android.view.WindowInsetsController w = getWindow().getInsetsController();
+            if (w != null) w.setSystemBarsAppearance(dark ? 0 : light, light);
+        } else {
+            int light = android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            android.view.View d = getWindow().getDecorView();
+            d.setSystemUiVisibility(dark ? d.getSystemUiVisibility() & ~light : d.getSystemUiVisibility() | light);
+        }
+    }
+
     private String version() {
         try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception e) { return "?"; }
     }
@@ -151,6 +172,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void setSecure(boolean on) {
             getSharedPreferences("sw", MODE_PRIVATE).edit().putBoolean("secure", on).apply();
             runOnUiThread(() -> MainActivity.this.setSecure(on));
+        }
+        @JavascriptInterface public void setBars(String color, boolean dark) {
+            if (!color.matches("#[0-9A-Fa-f]{6}")) return;
+            getSharedPreferences("sw", MODE_PRIVATE).edit().putString("bars", (dark ? "d" : "l") + color).apply();
+            runOnUiThread(() -> applyBars(color, dark));
         }
         /** [{"at": epochMs, "title", "text"}] — replaces all scheduled reminders. */
         @JavascriptInterface public void setReminders(String json) { Reminder.configure(MainActivity.this, json); }
