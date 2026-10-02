@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy · {{NAME}}</title>
+<!--STYLE-->
+</head>
+<body>
+<main>
+<a class="back" href="/">← Back to {{NAME}}</a>
+<h1>Privacy Policy</h1>
+<p class="meta">Last updated {{DATE}} · Version {{TERMS_VERSION}}</p>
+
+<div class="box"><b>The short version.</b> What you log about your cycle and health is encrypted on your device before it leaves it, with a key made from your password. We store only that scrambled copy, so we cannot read it, sell it, or hand it over in readable form, even if asked. We don't use advertising, analytics or tracking tools. You can download or delete everything at any time.</div>
+
+<h2>1. Who we are</h2>
+<p>{{NAME}} (“the app”, “we”, “us”) is operated by {{OPERATOR}}, {{STATE}}, Australia. This policy explains how we handle personal information under the <i>Privacy Act 1988</i> (Cth) and the Australian Privacy Principles (APPs). Contact us at <a href="mailto:{{CONTACT}}">{{CONTACT}}</a>.</p>
+
+<h2>2. What we collect, and why</h2>
+<table>
+<tr><th>Information</th><th>Why</th><th>Can we read it?</th></tr>
+<tr><td>Your email address</td><td>To identify your account so you can sign in on other devices.</td><td>Yes</td></tr>
+<tr><td>Health information you choose to log: period dates and flow, symptoms, mood, pain, sleep, temperature, cervical mucus, ovulation tests, exercise, medicines, notes, and your app settings</td><td>To show your calendar, predictions, charts and insights, and to sync them between your devices.</td><td><b>No.</b> End-to-end encrypted (see section 4).</td></tr>
+<tr><td>Security data derived from your password (a login key hashed with a secret, and your data key in encrypted form)</td><td>To check it's you when you sign in, without ever receiving your password.</td><td>No — your password never leaves your device.</td></tr>
+<tr><td>Signed-in devices: a coarse label (e.g. “Android”), when each session started and was last used</td><td>So you can see and sign out devices.</td><td>Yes</td></tr>
+<tr><td>IP address, used briefly</td><td>To limit repeated sign-in attempts (rate limiting) and keep the service secure.</td><td>Yes, held for no more than 24 hours</td></tr>
+</table>
+<p>Health information is “sensitive information” under the Privacy Act. We only collect it with your express consent, which you give when you create your account. You can withdraw consent at any time by deleting your account (section 8). Logging anything is optional.</p>
+<p>We do <b>not</b> collect your name, location, contacts, photos, advertising IDs, or device identifiers, and we do not use cookies for tracking.</p>
+
+<h2>3. How we use it</h2>
+<p>Only to provide the app to you: syncing your data, signing you in, keeping the service secure, and contacting you about your account if needed. We do not sell, rent or share your personal information for marketing, and we do not use it for advertising, profiling, or to train AI models. Predictions and insights are calculated on your device.</p>
+
+<h2>4. Encryption and security (APP 11)</h2>
+<ul>
+<li>Your password is turned into keys on your device (PBKDF2-SHA-256, 600,000 rounds). One key unlocks a random 256-bit data key; a separate key is used to sign in. The server never receives your password or your data key.</li>
+<li>Every entry is encrypted with AES-256-GCM on your device. Entry names are scrambled too, so the server can't even see which dates you logged.</li>
+<li>All connections use HTTPS (TLS). The service uses strict security headers, rate limiting on sign-in, and per-account access controls so one account can never read another's records.</li>
+<li>On Android, the app blocks screenshots and hides its content in the recent-apps screen by default, and excludes your data from device backups.</li>
+<li>Because we can't decrypt your data, <b>we can't recover it if you lose both your password and your recovery code.</b></li>
+</ul>
+<p>If a data breach is likely to cause serious harm, we will notify you and the Office of the Australian Information Commissioner (OAIC) as required by the Notifiable Data Breaches scheme.</p>
+
+<h2>5. Where your information is stored (APP 8)</h2>
+<p>We use Cloudflare, Inc. to host the app and its database. The database is set to be stored in the Oceania region, but Cloudflare is a US company with a global network, so your information (including your email address and encrypted data) may be processed in other countries while it is in transit or cached. Cloudflare acts only on our instructions and is bound by contractual data-protection terms. Your health data is encrypted before it leaves your device, so it is unreadable to Cloudflare and anyone else. By consenting to this policy you acknowledge this disclosure.</p>
+
+<h2>6. Disclosure</h2>
+<p>We don't disclose your personal information to anyone except our hosting provider (as above), or where required by Australian law. If we are lawfully required to provide data, we can only provide your email address, device-session records and encrypted data that we cannot read.</p>
+
+<h2>7. Keeping, accessing and correcting your information (APPs 11–13)</h2>
+<ul>
+<li>You can view, correct and delete any entry in the app at any time.</li>
+<li>You can download all your data (JSON or CSV) from <i>Me → Your data</i>.</li>
+<li>Inactive device sessions are removed after 90 days; sign-in attempt records after 24 hours.</li>
+<li>We keep your account until you delete it.</li>
+</ul>
+
+<h2>8. Deleting your account</h2>
+<p>Choose <i>Me → Delete account and all data</i>. This permanently deletes your account, all your encrypted entries and all sessions from our database straight away. Copies in our hosting provider's encrypted backups expire within 30 days. If you can't sign in, email us from your account's address and we'll delete it.</p>
+
+<h2>9. Children</h2>
+<p>You must be 16 or older to create an account.</p>
+
+<h2>10. Not medical advice</h2>
+<p>The app provides general wellbeing information. It is not a medical device, is not a contraceptive, and doesn't diagnose or treat any condition. See our <a href="/terms">Terms of Use</a>.</p>
+
+<h2>11. Complaints</h2>
+<p>If you have a question or complaint about privacy, email <a href="mailto:{{CONTACT}}">{{CONTACT}}</a>. We'll respond within 30 days. If you're not satisfied, you can complain to the Office of the Australian Information Commissioner: <a href="https://www.oaic.gov.au" rel="noopener noreferrer">oaic.gov.au</a>, 1300 363 992.</p>
+
+<h2>12. Changes</h2>
+<p>If we make material changes to this policy we'll ask you to review and agree to them in the app before continuing.</p>
+</main>
+</body>
+</html>

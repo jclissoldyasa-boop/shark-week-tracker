@@ -1,0 +1,14 @@
+{
+  "name": "shark-week-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "npm run build && wrangler d1 migrations apply shark-week --local && wrangler dev",
+    "deploy": "export XDG_CONFIG_HOME=$PWD/.cf-home && npm run build && node test/rls.test.mjs && wrangler d1 migrations apply shark-week --remote && wrangler deploy",
+    "test": "npm run build && node test/rls.test.mjs && node test/api.test.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.145.0"
+  }
+}

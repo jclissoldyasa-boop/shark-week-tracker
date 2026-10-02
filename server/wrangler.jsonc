@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "shark-week",
+  "account_id": "dcba8a82ac64e9933b312bcd761fb148",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-01",
+  // The Worker runs first for every request so pages get security headers.
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
+  // Daily clean-up of idle sessions and rate-limit counters.
+  "triggers": { "crons": ["23 15 * * *"] },
+  // Created with --location oc (Oceania) so the primary copy of the data lives near Australia.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "shark-week", "database_id": "4481cc6c-3b63-498a-bc63-6bbb0eb6d35d", "migrations_dir": "migrations" }
+  ],
+  "observability": { "enabled": false }
+}

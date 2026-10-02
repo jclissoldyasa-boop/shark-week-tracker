@@ -1,0 +1,1453 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shark Week Tracker</title>
+<meta name="description" content="Private period and cycle tracker with charts, symptom patterns and phase-by-phase health tips. End-to-end encrypted.">
+<meta name="theme-color" content="#07162A">
+<meta name="referrer" content="no-referrer">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<style>
+:root {
+  --bg: #F3F7FB; --surface: #FFFFFF; --surface2: #E8EFF7; --line: #D5DFEA;
+  --text: #0B1B33; --muted: #4F6380; --faint: #8193AB;
+  --accent: #D93B57; --accent-ink: #FFFFFF;
+  --period: #E0445F; --foll: #3E7FD1; --fert: #14998A; --lut: #C08A1E;
+  --period-wash: rgba(224,68,95,.14); --fert-wash: rgba(20,153,138,.14);
+  --warn: #9A5B00; --warn-bg: #FFF4DE; --ok: #12805C;
+  --shadow: 0 1px 2px rgba(11,27,51,.06), 0 4px 16px rgba(11,27,51,.06);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #07162A; --surface: #0E2340; --surface2: #15305A; --line: #21406B;
+    --text: #EAF2FF; --muted: #A3B6D3; --faint: #7088AA;
+    --accent: #E8506E; --accent-ink: #FFFFFF;
+    --period: #E8506E; --foll: #5B86E8; --fert: #17A08C; --lut: #B8841C;
+    --period-wash: rgba(232,80,110,.2); --fert-wash: rgba(23,160,140,.2);
+    --warn: #FFC56B; --warn-bg: #3A2A0E; --ok: #4FD3A0;
+    --shadow: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #07162A; --surface: #0E2340; --surface2: #15305A; --line: #21406B;
+  --text: #EAF2FF; --muted: #A3B6D3; --faint: #7088AA;
+  --accent: #E8506E; --accent-ink: #FFFFFF;
+  --period: #E8506E; --foll: #5B86E8; --fert: #17A08C; --lut: #B8841C;
+  --period-wash: rgba(232,80,110,.2); --fert-wash: rgba(23,160,140,.2);
+  --warn: #FFC56B; --warn-bg: #3A2A0E; --ok: #4FD3A0;
+  --shadow: none; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-tap-highlight-color: transparent; min-height: 100vh; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--accent); }
+h1, h2, h3 { line-height: 1.2; margin: 0 0 .5rem; }
+h1 { font-size: 1.5rem; } h2 { font-size: 1.15rem; } h3 { font-size: 1rem; }
+p { margin: 0 0 .75rem; }
+.muted { color: var(--muted); } .small { font-size: .85rem; } .center { text-align: center; }
+.hidden { display: none !important; }
+.wrap { max-width: 640px; margin: 0 auto; padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); }
+.card { background: var(--surface); border-radius: 18px; padding: 16px; margin: 0 0 14px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+.row { display: flex; gap: 10px; align-items: center; } .row.wrapok { flex-wrap: wrap; } .grow { flex: 1; min-width: 0; }
+.between { justify-content: space-between; }
+.btn { border: 0; border-radius: 12px; padding: 12px 16px; font-weight: 600; cursor: pointer; background: var(--surface2); min-height: 44px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.ghost { background: transparent; border: 1px solid var(--line); }
+.btn.danger { background: transparent; border: 1px solid var(--period); color: var(--period); }
+.btn.block { width: 100%; }
+.btn:disabled { opacity: .55; cursor: default; }
+.link { background: none; border: 0; color: var(--accent); padding: 6px 0; cursor: pointer; font-weight: 600; }
+label.field { display: block; margin: 0 0 12px; }
+label.field > span { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
+input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], input[type=time], select, textarea {
+  width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); min-height: 44px;
+}
+textarea { min-height: 80px; resize: vertical; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.check { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 10px; font-size: .92rem; }
+.check input { width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: var(--accent); }
+.err { color: var(--period); font-size: .9rem; min-height: 1.2em; margin: 4px 0 8px; }
+.note { background: var(--surface2); border-radius: 12px; padding: 10px 12px; font-size: .88rem; color: var(--muted); }
+.warnbox { background: var(--warn-bg); color: var(--text); border-radius: 12px; padding: 12px; font-size: .92rem; border-left: 4px solid var(--warn); }
+
+/* top bar + nav */
+.top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.top .title { font-weight: 800; font-size: 1.1rem; letter-spacing: .2px; }
+.sync { font-size: .78rem; color: var(--faint); margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.sync i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); display: inline-block; }
+.sync.ok i { background: var(--ok); } .sync.busy i { background: var(--lut); } .sync.off i { background: var(--period); }
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom); z-index: 20; }
+nav.tabs button { flex: 1; max-width: 128px; background: none; border: 0; padding: 8px 0 10px; color: var(--muted); font-size: .72rem; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; min-height: 56px; }
+nav.tabs button svg { width: 24px; height: 24px; }
+nav.tabs button[aria-current=page] { color: var(--accent); font-weight: 700; }
+
+/* today */
+.ringwrap { position: relative; width: 260px; height: 260px; margin: 4px auto 8px; }
+.ringwrap svg { width: 100%; height: 100%; }
+.ringmid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 50px; }
+.ringmid .big { font-size: 2.6rem; font-weight: 800; line-height: 1; }
+.ringmid .phase { font-weight: 700; margin-top: 4px; }
+.ringmid .sub { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .8rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 4px; display: inline-block; flex: none; }
+.sw.period { background: var(--period); } .sw.foll { background: var(--foll); } .sw.fert { background: var(--fert); } .sw.lut { background: var(--lut); }
+.sw.pred { border: 2px dashed var(--period); background: transparent; } .sw.fw { background: var(--fert-wash); border: 1px solid var(--fert); }
+.sw.ov { border: 2px solid var(--fert); border-radius: 50%; background: transparent; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 8px 13px; cursor: pointer; font-size: .9rem; min-height: 40px; }
+.chip[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.chip.tag { cursor: default; padding: 4px 10px; min-height: 0; font-size: .82rem; }
+.tips li { margin-bottom: 6px; } .tips { padding-left: 20px; margin: 6px 0 0; }
+.tiprow { display: grid; grid-template-columns: 26px 1fr; gap: 6px 8px; align-items: start; margin-bottom: 8px; }
+.tipdot { width: 10px; height: 10px; border-radius: 50%; margin: 7px 0 0 6px; display: block; }
+.ico { width: 22px; height: 22px; color: var(--accent); }
+.updbar { background: var(--surface2); border: 1px solid var(--accent); border-radius: 14px; padding: 10px 12px; margin-bottom: 14px; display: flex; gap: 10px; align-items: center; font-size: .92rem; }
+.updbar .btn { padding: 8px 14px; min-height: 38px; }
+.tiprow b { display: block; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-size: .95rem; }
+.kv .k { color: var(--muted); }
+
+/* calendar */
+.calhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.calhead button { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--surface2); cursor: pointer; font-size: 1.2rem; }
+.calgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.calgrid .dow { text-align: center; font-size: .75rem; color: var(--faint); padding: 4px 0; }
+.day { position: relative; aspect-ratio: 1; border-radius: 12px; border: 0; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: .95rem; padding: 0; }
+.day.out { visibility: hidden; }
+.day.future { color: var(--muted); }
+.day.fw { background: var(--fert-wash); }
+.day.period { background: var(--period); color: #fff; font-weight: 700; }
+.day.spot { box-shadow: inset 0 0 0 2px var(--period); }
+.day.pred { box-shadow: inset 0 0 0 2px var(--period); border: 0; background-image: repeating-linear-gradient(135deg, var(--period-wash) 0 4px, transparent 4px 8px); }
+.day.ov::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; border: 2px solid var(--fert); }
+.day.today { outline: 2px solid var(--text); outline-offset: -2px; font-weight: 800; }
+.day .dot { position: absolute; bottom: 5px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--muted); }
+.day.period .dot { background: #fff; }
+.editbar { background: var(--period); color: #fff; border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; font-size: .9rem; }
+.editbar .btn { background: #fff; color: #000; padding: 8px 12px; min-height: 36px; }
+
+/* sheet */
+.sheet { position: fixed; inset: 0; background: var(--bg); z-index: 40; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.sheet .wrap { padding-bottom: 40px; }
+.sheethead { position: sticky; top: 0; z-index: 2; background: var(--bg); display: flex; align-items: center; gap: 8px; padding: 10px 0; margin-bottom: 6px; }
+.iconbtn { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--surface2); cursor: pointer; font-size: 1.15rem; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.sec { margin-bottom: 18px; } .sec > h3 { margin-bottom: 8px; }
+.scale { display: flex; gap: 6px; } .scale .chip { flex: 1; text-align: center; padding: 8px 0; }
+.saved { font-size: .8rem; color: var(--ok); min-width: 54px; text-align: right; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+
+/* charts */
+.chart { width: 100%; overflow: visible; }
+.chart text { fill: var(--muted); font-size: 10.5px; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .avg { stroke: var(--text); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.chart .band { fill: var(--fert-wash); }
+.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); }
+.stat .l { font-size: .8rem; color: var(--muted); } .stat .v { font-size: 1.6rem; font-weight: 700; } .stat .d { font-size: .8rem; color: var(--muted); }
+.seg { display: inline-flex; background: var(--surface2); border-radius: 10px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+.seg button { border: 0; background: transparent; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: .85rem; min-height: 34px; }
+.seg button[aria-pressed=true] { background: var(--surface); font-weight: 700; box-shadow: var(--shadow); }
+table.data { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: 8px; }
+table.data th, table.data td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+table.data th { color: var(--muted); font-weight: 600; }
+.tip { position: fixed; z-index: 60; pointer-events: none; background: var(--text); color: var(--bg); padding: 6px 9px; border-radius: 8px; font-size: .8rem; max-width: 240px; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.hm rect.cell { rx: 3px; }
+.pattern { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: .93rem; }
+.pattern:last-child { border-bottom: 0; }
+
+/* auth */
+.auth { max-width: 440px; margin: 0 auto; padding: 32px 16px 40px; }
+.brand { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 10px 0 24px; text-align: center; }
+.brand svg { width: 84px; height: 84px; }
+.brand .name { font-size: 1.7rem; font-weight: 800; }
+.code { font: 600 1.15rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 1px; background: var(--surface2); border-radius: 12px; padding: 14px; text-align: center; word-break: break-all; user-select: all; }
+.spinner { width: 22px; height: 22px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; display: inline-block; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+.toast { position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; z-index: 70; font-size: .9rem; max-width: calc(100% - 32px); }
+.list > div { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.list > div:last-child { border-bottom: 0; }
+
+/* print (doctor summary) */
+@media print {
+  body * { visibility: hidden; }
+  #report, #report * { visibility: visible; }
+  #report { position: absolute; inset: 0; background: #fff; color: #000; }
+  #report .noprint { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="app" aria-live="polite"><div class="auth center"><span class="spinner"></span></div></div>
+<nav class="tabs hidden" id="tabs" aria-label="Main">
+  <button data-tab="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Today</button>
+  <button data-tab="calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Calendar</button>
+  <button data-tab="insights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V12M10 20V6M15 20v-9M20 20V9"/></svg>Insights</button>
+  <button data-tab="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg>Health</button>
+  <button data-tab="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Me</button>
+</nav>
+<div id="sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-label="Log a day"></div>
+<div id="report" class="sheet hidden" role="dialog" aria-modal="true" aria-label="Summary for your doctor"></div>
+<div id="tip" class="tip hidden" role="tooltip"></div>
+<script>
+"use strict";
+// ============================================================================================
+// Shark Week Tracker. Everything you log is encrypted on this device (AES-256-GCM) before it is
+// stored or synced; the server only ever holds ciphertext. See README.md "Encryption".
+// ============================================================================================
+
+const APP_VERSION = "1.0.0";
+const BUILD = "__BUILD__";       // replaced by build.mjs with a hash of this page; used to spot a newer web version
+const PBKDF2_ITER = 600000;          // OWASP 2023 guidance for PBKDF2-HMAC-SHA256
+const NATIVE = window.SharkNative || null;
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const te = new TextEncoder(), td = new TextDecoder();
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// ---------- dates (all local, as YYYY-MM-DD) ----------
+const pad = n => String(n).padStart(2, "0");
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parse = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d, 12); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+const diff = (a, b) => Math.round((Date.UTC(...ymd(a)) - Date.UTC(...ymd(b))) / 864e5); // a - b in days
+const ymd = s => { const [y, m, d] = s.split("-").map(Number); return [y, m - 1, d]; };
+const today = () => iso(new Date());
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const fmt = (s, opts = { day: "numeric", month: "short" }) => parse(s).toLocaleDateString("en-AU", opts);
+const fmtLong = s => fmt(s, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+// ---------- what can be logged ----------
+const FLOWS = [["spotting", "Spotting"], ["light", "Light"], ["medium", "Medium"], ["heavy", "Heavy"]];
+const SYMPTOMS = [["cramps", "Cramps"], ["headache", "Headache"], ["migraine", "Migraine"], ["bloating", "Bloating"], ["tender", "Tender breasts"],
+  ["acne", "Acne"], ["backache", "Back pain"], ["fatigue", "Fatigue"], ["nausea", "Nausea"], ["cravings", "Cravings"], ["insomnia", "Trouble sleeping"],
+  ["hotflush", "Hot flushes"], ["dizzy", "Dizziness"], ["constipation", "Constipation"], ["diarrhoea", "Diarrhoea"], ["joint", "Joint pain"],
+  ["pelvic", "Pelvic pain"], ["brainfog", "Brain fog"], ["clots", "Clots"], ["flooding", "Flooding / leaking"]];
+const MOODS = [["calm", "Calm"], ["happy", "Happy"], ["energetic", "Energetic"], ["focused", "Focused"], ["irritable", "Irritable"],
+  ["anxious", "Anxious"], ["sad", "Sad"], ["swings", "Mood swings"], ["sensitive", "Sensitive"], ["low", "Low motivation"]];
+const MUCUS = [["dry", "Dry"], ["sticky", "Sticky"], ["creamy", "Creamy"], ["watery", "Watery"], ["eggwhite", "Egg white"]];
+const LIBIDO = [["low", "Low"], ["normal", "Normal"], ["high", "High"]];
+const EXERCISE = [["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["intense", "Intense"]];
+const MEDS = [["painrelief", "Pain relief"], ["iron", "Iron"], ["magnesium", "Magnesium"], ["vitd", "Vitamin D"], ["omega3", "Omega-3"], ["pill", "Contraceptive pill"]];
+const LABEL = Object.fromEntries([...FLOWS, ...SYMPTOMS, ...MOODS, ...MUCUS, ...MEDS]);
+const DEFAULT_SETTINGS = { cycleLen: 28, periodLen: 5, luteal: 14, fertile: true, theme: "auto",
+  remind: { on: false, before: 2, hour: 9, discreet: true, fertile: false, daily: false }, secure: true };
+
+// ---------- app state ----------
+const S = {
+  auth: null,          // {token, email, salt, iter, wrapped}
+  keys: null,          // {enc: AES-GCM CryptoKey, id: HMAC CryptoKey} — non-extractable
+  days: {},            // "YYYY-MM-DD" -> logged values
+  settings: { ...DEFAULT_SETTINGS },
+  tab: "today", calMonth: null, calEdit: false, sync: { state: "idle", at: 0 }, insight: { metric: "energy", bbt: 0, tables: {} },
+};
+
+// =============================== storage (IndexedDB) =====================================
+// Keeps the session, the non-extractable keys and an encrypted copy of every document, so the app
+// opens and works offline. Nothing in here is plaintext health data.
+const idb = {
+  db: null,
+  open() {
+    if (this.db) return Promise.resolve(this.db);
+    return new Promise((res, rej) => {
+      const r = indexedDB.open("sharkweek", 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore("kv"); r.result.createObjectStore("docs", { keyPath: "id" }); };
+      r.onsuccess = () => res(this.db = r.result);
+      r.onerror = () => rej(r.error);
+    });
+  },
+  async tx(store, mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const t = db.transaction(store, mode), s = t.objectStore(store);
+      const out = fn(s);
+      t.oncomplete = () => res(out && "result" in out ? out.result : out);
+      t.onerror = () => rej(t.error);
+    });
+  },
+  get: (k) => idb.tx("kv", "readonly", s => s.get(k)),
+  set: (k, v) => idb.tx("kv", "readwrite", s => s.put(v, k)),
+  doc: (id) => idb.tx("docs", "readonly", s => s.get(id)),
+  putDoc: (d) => idb.tx("docs", "readwrite", s => s.put(d)),
+  allDocs: () => idb.tx("docs", "readonly", s => s.getAll()),
+  async wipe() {
+    if (this.db) { this.db.close(); this.db = null; }
+    await new Promise(res => { const r = indexedDB.deleteDatabase("sharkweek"); r.onsuccess = r.onerror = r.onblocked = () => res(); });
+  },
+};
+
+// =============================== encryption ==============================================
+const subtle = crypto.subtle;
+const b64 = u8 => btoa(String.fromCharCode(...u8)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64 = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+const rand = n => crypto.getRandomValues(new Uint8Array(n));
+const cat = (a, b) => { const o = new Uint8Array(a.length + b.length); o.set(a); o.set(b, a.length); return o; };
+
+async function pbkdf2(password, salt, iter) {
+  const k = await subtle.importKey("raw", te.encode(password.normalize("NFKC")), "PBKDF2", false, ["deriveBits"]);
+  return new Uint8Array(await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: te.encode(salt), iterations: iter }, k, 256));
+}
+async function hkdf(ikm, info, salt = "") {
+  const k = await subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
+  return new Uint8Array(await subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: te.encode(salt), info: te.encode(info) }, k, 256));
+}
+/** Password -> a login key (sent to the server) and a wrapping key (never leaves this device). */
+async function passwordKeys(password, salt, iter) {
+  const m = await pbkdf2(password, salt, iter);
+  return { auth: b64(await hkdf(m, "sharkweek-auth-v1")), wrap: await hkdf(m, "sharkweek-wrap-v1") };
+}
+/** Recovery code -> the same pair. The code is 125 random bits, so it needs no slow hashing. */
+async function recoveryKeys(code, email) {
+  const c = te.encode(normCode(code));
+  return { auth: b64(await hkdf(c, "sharkweek-rec-auth-v1", email)), wrap: await hkdf(c, "sharkweek-rec-wrap-v1", email) };
+}
+async function aes(raw, usage) { return subtle.importKey("raw", raw, { name: "AES-GCM" }, false, [usage]); }
+async function wrapRaw(wrapKey, raw) {
+  const iv = rand(12);
+  const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv, additionalData: te.encode("sharkweek-key-v1") }, await aes(wrapKey, "encrypt"), raw));
+  return b64(cat(iv, ct));
+}
+async function unwrapRaw(wrapKey, s) {
+  const u = unb64(s);
+  return new Uint8Array(await subtle.decrypt({ name: "AES-GCM", iv: u.slice(0, 12), additionalData: te.encode("sharkweek-key-v1") }, await aes(wrapKey, "decrypt"), u.slice(12)));
+}
+/** 64 random bytes: 32 for the AES data key, 32 for the HMAC key that makes opaque document ids. */
+async function importDataKeys(raw) {
+  const keys = {
+    enc: await subtle.importKey("raw", raw.slice(0, 32), { name: "AES-GCM" }, false, ["encrypt", "decrypt"]),
+    id: await subtle.importKey("raw", raw.slice(32, 64), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]),
+  };
+  raw.fill(0);
+  return keys;
+}
+const idCache = new Map();
+async function docId(key) {
+  if (!idCache.has(key)) idCache.set(key, b64(new Uint8Array(await subtle.sign("HMAC", S.keys.id, te.encode(key)))).slice(0, 22));
+  return idCache.get(key);
+}
+async function encryptDoc(id, obj) {
+  let json = JSON.stringify(obj);
+  json += " ".repeat((256 - (te.encode(json).length % 256)) % 256); // pad so sizes don't hint at what was logged
+  const iv = rand(12);
+  const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv, additionalData: te.encode(id) }, S.keys.enc, te.encode(json)));
+  return b64(cat(iv, ct));
+}
+async function decryptDoc(id, data) {
+  const u = unb64(data);
+  const pt = await subtle.decrypt({ name: "AES-GCM", iv: u.slice(0, 12), additionalData: te.encode(id) }, S.keys.enc, u.slice(12));
+  return JSON.parse(td.decode(pt));
+}
+const CODE_ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const newRecoveryCode = () => [...rand(25)].map(b => CODE_ALPHA[b % 32]).join("").match(/.{5}/g).join("-");
+const normCode = s => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+const normEmail = s => String(s || "").trim().toLowerCase();
+
+// =============================== API + sync ==============================================
+class ApiError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
+async function api(path, opts = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (S.auth && S.auth.token) headers.Authorization = "Bearer " + S.auth.token;
+  let r;
+  try {
+    r = await fetch(path, { method: opts.method || "GET", headers, body: opts.body ? JSON.stringify(opts.body) : undefined, cache: "no-store" });
+  } catch { throw new ApiError(0, "You're offline. Your changes are saved on this device and will sync later."); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    if (r.status === 401 && S.auth && !opts.noSignout) { signedOutElsewhere(); }
+    throw new ApiError(r.status, j.error || "Something went wrong.");
+  }
+  return j;
+}
+
+/** Saves one logical document ("day:2026-10-02" or "settings"), encrypted, then syncs soon. */
+async function saveDoc(key, value) {
+  const id = await docId(key);
+  const data = await encryptDoc(id, { k: key, v: value, t: Date.now() });
+  await idb.putDoc({ id, data, dirty: 1 });
+  syncSoon();
+}
+function applyDoc(d) {
+  if (!d || typeof d.k !== "string") return;
+  if (d.k === "settings") S.settings = { ...DEFAULT_SETTINGS, ...d.v, remind: { ...DEFAULT_SETTINGS.remind, ...(d.v && d.v.remind) } };
+  else if (d.k.startsWith("day:")) {
+    const day = d.k.slice(4);
+    if (d.v && Object.keys(d.v).length) S.days[day] = d.v; else delete S.days[day];
+  }
+}
+async function loadLocal() {
+  S.days = {}; S.settings = { ...DEFAULT_SETTINGS };
+  for (const row of await idb.allDocs()) {
+    try { applyDoc(await decryptDoc(row.id, row.data)); } catch (e) { console.warn("Couldn't decrypt a stored entry", row.id); }
+  }
+}
+
+let syncTimer = null, syncing = null;
+function syncSoon(ms = 1500) { clearTimeout(syncTimer); syncTimer = setTimeout(sync, ms); }
+async function sync() {
+  if (!S.auth) return;
+  if (syncing) return syncing;
+  setSync("busy");
+  syncing = (async () => {
+    try {
+      // push local changes
+      const dirty = (await idb.allDocs()).filter(d => d.dirty);
+      for (let i = 0; i < dirty.length; i += 200) {
+        const batch = dirty.slice(i, i + 200);
+        await api("/api/docs", { method: "POST", body: { docs: batch.map(d => ({ id: d.id, data: d.data })) } });
+        for (const d of batch) {
+          const now = await idb.doc(d.id);
+          if (now && now.data === d.data) await idb.putDoc({ id: d.id, data: d.data, dirty: 0 });
+        }
+      }
+      // pull other devices' changes
+      let cur = (await idb.get("cursor")) || { since: 0, after: "" }, changed = false;
+      for (;;) {
+        const r = await api(`/api/docs?since=${cur.since}&after=${encodeURIComponent(cur.after)}`);
+        for (const d of r.docs) {
+          const local = await idb.doc(d.id);
+          if (local && local.dirty) continue; // ours is newer and goes up next time
+          if (local && local.data === d.data) continue;
+          await idb.putDoc({ id: d.id, data: d.data, dirty: 0 });
+          try { applyDoc(await decryptDoc(d.id, d.data)); changed = true; } catch { console.warn("Couldn't decrypt a synced entry", d.id); }
+        }
+        cur = { since: r.since, after: r.after };
+        await idb.set("cursor", cur);
+        if (!r.more) break;
+      }
+      S.sync = { state: "ok", at: Date.now() };
+      setSync("ok");
+      if (changed) { render(); pushReminders(); }
+      if ((await idb.allDocs()).some(d => d.dirty)) syncSoon(3000);
+    } catch (e) {
+      setSync(e.status === 0 ? "off" : "err", e.message);
+    } finally { syncing = null; }
+  })();
+  return syncing;
+}
+function setSync(state, msg) {
+  S.sync.state = state; S.sync.msg = msg || "";
+  const el = $("#syncind"); if (!el) return;
+  el.className = "sync " + (state === "ok" ? "ok" : state === "busy" ? "busy" : "off");
+  el.lastChild.textContent = state === "ok" ? "Synced" : state === "busy" ? "Syncing…" : state === "off" ? "Offline" : "Sync problem";
+  el.title = msg || "";
+}
+
+// =============================== cycle engine ============================================
+const isBleed = v => v && v.flow && v.flow !== "spotting";
+/** Groups logged period days (gaps of up to 2 days allowed) into periods. */
+function periods() {
+  const ds = Object.keys(S.days).filter(d => isBleed(S.days[d])).sort();
+  const out = [];
+  for (const d of ds) {
+    const last = out[out.length - 1];
+    if (last && diff(d, last.end) <= 3) last.end = d; else out.push({ start: d, end: d });
+  }
+  out.forEach(p => p.len = diff(p.end, p.start) + 1);
+  return out;
+}
+function model(on = today()) {
+  const st = S.settings, ps = periods().filter(p => p.start <= on);
+  const cycles = [];
+  for (let i = 0; i < ps.length - 1; i++) cycles.push({ start: ps[i].start, end: addDays(ps[i + 1].start, -1), len: diff(ps[i + 1].start, ps[i].start), periodLen: ps[i].len });
+  const valid = cycles.filter(c => c.len >= 15 && c.len <= 90).slice(-6);
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const avgCycle = valid.length ? Math.round(mean(valid.map(c => c.len))) : st.cycleLen;
+  const recentP = ps.slice(-6).filter(p => p.len <= 15);
+  const avgPeriod = recentP.length >= 2 ? Math.round(mean(recentP.map(p => p.len))) : st.periodLen;
+  const luteal = Math.min(st.luteal, avgCycle - 5);
+  const last = ps[ps.length - 1] || null;
+  const m = { cycles, valid, avgCycle, avgPeriod, luteal, last, periods: ps };
+  if (!last) return m;
+  m.cycleDay = diff(on, last.start) + 1;
+  // On your period if today is logged as a bleed day, or it's within your usual length and you logged bleeding in the last 2 days.
+  m.inPeriod = diff(on, last.end) <= 0 || (diff(on, last.start) < avgPeriod && diff(on, last.end) <= 2);
+  m.nextStart = addDays(last.start, avgCycle);
+  m.late = diff(on, m.nextStart);  // >0 means overdue by that many days
+  m.ovulation = addDays(m.nextStart, -luteal);
+  const bbt = bbtShift(last.start, on);
+  if (bbt) { m.ovulation = bbt.ovulation; m.ovConfirmed = true; }
+  m.fertileStart = addDays(m.ovulation, -5); m.fertileEnd = addDays(m.ovulation, 1);
+  m.phase = phaseOf(m.cycleDay, avgCycle, last.len || avgPeriod, diff(m.ovulation, last.start) + 1, m.late > 0);
+  if (m.inPeriod) m.phase = "menstrual";
+  const ys = valid.map(c => c.len);
+  m.range = ys.length >= 3 ? Math.max(...ys) - Math.min(...ys) : null;
+  return m;
+}
+function phaseOf(day, len, plen, ovDay, late) {
+  if (day <= plen) return "menstrual";
+  if (late) return "luteal";
+  if (day < ovDay - 2) return "follicular";
+  if (day <= ovDay + 1) return "ovulatory";
+  return "luteal";
+}
+/** Basal temperature "three over six" rule: three readings above the highest of the previous six, the last ≥0.2 °C above. */
+function bbtShift(from, to) {
+  const pts = [];
+  for (let d = from; d <= to; d = addDays(d, 1)) { const t = S.days[d] && +S.days[d].temp; if (t > 34 && t < 40) pts.push({ d, t }); }
+  for (let i = 6; i + 2 < pts.length; i++) {
+    const cover = Math.max(...pts.slice(i - 6, i).map(p => p.t));
+    if (pts[i].t > cover && pts[i + 1].t > cover && pts[i + 2].t >= cover + 0.2) return { ovulation: addDays(pts[i].d, -1), cover, shift: pts[i].d };
+  }
+  return null;
+}
+/** What each calendar day shows: logged period, predicted period, fertile window, ovulation. */
+function dayInfo(m) {
+  const info = {};
+  const mark = (d, k) => { (info[d] = info[d] || {})[k] = true; };
+  const ps = m.periods;
+  // past cycles: estimated ovulation and fertile window from the actual length
+  for (const c of m.cycles) {
+    const ov = addDays(c.end, 1 - m.luteal);
+    if (S.settings.fertile) for (let k = -5; k <= 1; k++) mark(addDays(ov, k), "fw");
+    mark(ov, "ov");
+  }
+  if (!m.last) return info;
+  // current and the next 12 predicted cycles
+  let start = m.late > 0 ? today() : m.nextStart;
+  let ov = m.ovulation;
+  for (let n = 0; n < 12; n++) {
+    if (n > 0 || m.late <= 0) {
+      if (S.settings.fertile) for (let k = -5; k <= 1; k++) mark(addDays(ov, k), "fw");
+      mark(ov, "ov");
+    }
+    for (let k = 0; k < m.avgPeriod; k++) mark(addDays(start, k), "pred");
+    start = addDays(start, m.avgCycle);
+    ov = addDays(start, -m.luteal);
+  }
+  for (const p of ps) for (let d = p.start; d <= p.end; d = addDays(d, 1)) if (info[d]) delete info[d].fw;
+  return info;
+}
+
+// =============================== health guidance =========================================
+const PHASES = {
+  menstrual: { name: "Period", color: "var(--period)", blurb: "Hormones are at their lowest. Energy often dips for a day or two.",
+    tips: [["🛌", "Rest & move", "Gentle movement (walking, stretching, yoga) can ease cramps. Push harder only if you feel good."],
+      ["🥩", "Eat", "Iron-rich foods (red meat, legumes, leafy greens) with vitamin C help replace iron lost in blood."],
+      ["🔥", "Comfort", "Heat on the belly or back and an anti-inflammatory like ibuprofen (if it suits you) help period pain. Ask a pharmacist."],
+      ["💧", "Hydrate", "Drinking enough water can reduce bloating and headaches."]] },
+  follicular: { name: "Follicular", color: "var(--foll)", blurb: "Oestrogen is rising. Many people feel more energetic and upbeat.",
+    tips: [["🏋️", "Train", "A good window for harder or new workouts and strength progress, if you feel up to it."],
+      ["🧠", "Plan", "Mood and focus often lift — handy for starting projects or tackling tricky tasks."],
+      ["🥗", "Eat", "Plenty of protein, fibre and colourful veg to fuel training and recovery."],
+      ["😴", "Sleep", "Keep a regular sleep time — it supports energy across the whole cycle."]] },
+  ovulatory: { name: "Ovulation (est.)", color: "var(--fert)", blurb: "Oestrogen peaks and an egg is released. Energy and libido are often highest.",
+    tips: [["⚡", "Energy", "Often your strongest days. Warm up well — some research links this phase to more ligament laxity."],
+      ["💬", "Social", "Many people feel most confident and social now."],
+      ["🌡️", "Signs", "You may notice egg-white mucus, a mild one-sided twinge, or a temperature rise just after."],
+      ["ℹ️", "Note", "Predictions are estimates and are not a reliable form of contraception."]] },
+  luteal: { name: "Luteal", color: "var(--lut)", blurb: "Progesterone rises then falls. PMS symptoms can show up in the last week.",
+    tips: [["🍠", "Eat", "Regular meals with complex carbs and protein can steady cravings and mood. Body temperature and appetite rise slightly."],
+      ["🧘", "Ease off", "Swap some intense sessions for steady cardio, strength or mobility if you feel flat."],
+      ["☕", "Cut back", "Less caffeine, alcohol and salt can reduce breast tenderness, bloating and irritability."],
+      ["🌙", "Sleep", "Sleep can get lighter — a cooler room and a wind-down routine help. Magnesium-rich foods may help too."]] },
+};
+/** Gentle "worth checking with a GP" flags, based on healthdirect and Jean Hailes guidance. Never a diagnosis. */
+function healthFlags(m) {
+  const flags = [], t = today();
+  const v = m.valid;
+  if (v.length >= 3) {
+    const avg = v.reduce((a, c) => a + c.len, 0) / v.length;
+    if (avg < 21) flags.push(["Short cycles", `Your recent cycles average ${Math.round(avg)} days. Cycles regularly shorter than 21 days are worth mentioning to a GP.`]);
+    if (avg > 35) flags.push(["Long cycles", `Your recent cycles average ${Math.round(avg)} days. Cycles regularly longer than 35 days can have causes (like PCOS or thyroid issues) a GP can check.`]);
+    if (m.range > 20) flags.push(["Changing cycle length", `Your cycle length has varied by ${m.range} days recently. Big swings are common with stress, travel or perimenopause, but worth raising if new for you.`]);
+  }
+  const recent = m.periods.slice(-3);
+  if (recent.filter(p => p.len > 7).length >= 2) flags.push(["Long periods", "Bleeding for more than 7 days more than once can be a sign of heavy menstrual bleeding. A GP can check iron levels and causes."]);
+  const heavyPeriods = recent.filter(p => { let h = 0, flood = false; for (let d = p.start; d <= p.end; d = addDays(d, 1)) { const x = S.days[d] || {}; if (x.flow === "heavy") h++; if ((x.sym || []).includes("flooding") || (x.sym || []).includes("clots")) flood = true; } return h >= 3 || flood; });
+  if (heavyPeriods.length >= 2) flags.push(["Heavy bleeding", "Heavy days, flooding or clots in more than one recent period. Heavy bleeding is common and treatable — and can cause low iron."]);
+  const painful = recent.filter(p => { for (let d = addDays(p.start, -2); d <= p.end; d = addDays(d, 1)) if ((S.days[d] || {}).pain >= 7) return true; return false; });
+  if (painful.length >= 2) flags.push(["Severe period pain", "Pain of 7/10 or more in more than one period. Pain that stops you doing everyday things isn't something to just put up with — it can be a sign of endometriosis or adenomyosis."]);
+  const inPeriod = d => m.periods.some(p => d >= addDays(p.start, -2) && d <= addDays(p.end, 2));
+  const between = Object.keys(S.days).filter(d => diff(t, d) <= 90 && S.days[d].flow && !inPeriod(d) && !(m.last && d >= addDays(m.ovulation, -1) && d <= addDays(m.ovulation, 1)));
+  if (between.length >= 3) flags.push(["Bleeding between periods", `You've logged bleeding or spotting outside your period on ${between.length} days in the last 3 months. Bleeding between periods or after sex should be checked by a GP.`]);
+  if (m.last && m.cycles.length >= 2 && diff(t, m.last.start) > 90) flags.push(["No period for 3 months", "No period logged for over 90 days. If you're not pregnant, on certain contraception or in menopause, a GP can help find out why."]);
+  return flags;
+}
+
+// =============================== UI: shell ===============================================
+let toastTimer;
+function toast(msg) {
+  let el = $(".toast"); if (!el) { el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  el.textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.remove(), 3500);
+}
+function applyTheme() {
+  const t = S.settings.theme;
+  if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+}
+const LOGO = `<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0E2340"/><path d="M14.75 42.5C24.5 37.5 32.75 26.25 42.75 13C39.75 23.75 39.75 35 49 42.5z" fill="#E8506E"/><path d="M8 45.25c4 0 6-3 10-3s6 3 10 3 6-3 10-3 6 3 10 3 6-3 8-3" fill="none" stroke="#5B86E8" stroke-width="3.5" stroke-linecap="round"/></svg>`;
+function topbar(title) {
+  return `<div class="top">${LOGO.replace("<svg", '<svg width="32" height="32"')}<div class="title">${esc(title)}</div>
+    <div id="syncind" class="sync"><i></i><span></span></div></div>`;
+}
+function render() {
+  if (!S.auth) return;
+  applyTheme();
+  $("#tabs").classList.remove("hidden");
+  $$("#tabs button").forEach(b => b.dataset.tab === S.tab ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
+  const views = { today: viewToday, calendar: viewCalendar, insights: viewInsights, guide: viewGuide, me: viewMe };
+  $("#app").innerHTML = `<main class="wrap">${updateBar()}${views[S.tab]()}</main>`;
+  setSync(S.sync.state, S.sync.msg);
+  if (S.tab === "me") loadSessions();
+}
+document.addEventListener("click", e => {
+  const tab = e.target.closest("[data-tab]");
+  if (tab) { S.tab = tab.dataset.tab; S.calEdit = false; render(); scrollTo(0, 0); return; }
+  const a = e.target.closest("[data-act]");
+  if (a && ACT[a.dataset.act]) { e.preventDefault(); ACT[a.dataset.act](a, e); }
+});
+const ACT = {}; // click handlers by data-act name (inline handlers are blocked by the Content-Security-Policy)
+
+// =============================== UI: today ===============================================
+function ring(m) {
+  const L = Math.max(m.avgCycle, m.cycleDay || 0), cx = 130, cy = 130, r = 108, w = 16;
+  const ovDay = m.last ? diff(m.ovulation, m.last.start) + 1 : L - m.luteal;
+  const plen = m.last ? (m.inPeriod ? Math.max(m.last.len, m.avgPeriod) : m.last.len) : m.avgPeriod;
+  let segs = "";
+  for (let d = 1; d <= L; d++) {
+    const a0 = (d - 1) / L * 2 * Math.PI - Math.PI / 2 + 0.012, a1 = d / L * 2 * Math.PI - Math.PI / 2 - 0.012;
+    let ph = d <= plen ? "menstrual" : d > m.avgCycle ? "luteal" : phaseOf(d, m.avgCycle, plen, ovDay, false);
+    if (S.settings.fertile && d >= ovDay - 5 && d <= ovDay + 1 && ph !== "menstrual") ph = "ovulatory";
+    const col = { menstrual: "var(--period)", follicular: "var(--foll)", ovulatory: "var(--fert)", luteal: "var(--lut)" }[ph];
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    segs += `<path d="M${cx + r * Math.cos(a0)} ${cy + r * Math.sin(a0)} A${r} ${r} 0 ${large} 1 ${cx + r * Math.cos(a1)} ${cy + r * Math.sin(a1)}" stroke="${col}" stroke-width="${w}" fill="none" opacity="${m.cycleDay && d > m.cycleDay ? .45 : 1}"/>`;
+  }
+  let marker = "";
+  if (m.cycleDay) {
+    const a = (Math.min(m.cycleDay, L) - .5) / L * 2 * Math.PI - Math.PI / 2;
+    marker = `<circle cx="${cx + r * Math.cos(a)}" cy="${cy + r * Math.sin(a)}" r="12" fill="var(--text)" stroke="var(--surface)" stroke-width="3"/>`;
+  }
+  return `<svg viewBox="0 0 260 260" role="img" aria-label="Cycle ring: day ${m.cycleDay || "unknown"} of about ${m.avgCycle}">${segs}${marker}</svg>`;
+}
+function headline(m) {
+  if (!m.last) return { big: "—", phase: "No period logged yet", sub: "Log your last period to get predictions." };
+  const t = today();
+  if (m.inPeriod) return { big: `Day ${m.cycleDay}`, phase: "Period", sub: `Period day ${diff(t, m.last.start) + 1}` };
+  if (m.late > 0) return { big: `Day ${m.cycleDay}`, phase: PHASES[m.phase].name, sub: `Period ${plural(m.late, "day")} late` };
+  if (m.late === 0) return { big: `Day ${m.cycleDay}`, phase: PHASES[m.phase].name, sub: "Period due today" };
+  return { big: `Day ${m.cycleDay}`, phase: PHASES[m.phase].name, sub: `Period in ${plural(-m.late, "day")}` };
+}
+function viewToday() {
+  const m = model(), h = headline(m), t = today(), log = S.days[t] || {};
+  const ph = m.last ? PHASES[m.phase] : null;
+  const flags = healthFlags(m);
+  const periodBtn = m.inPeriod
+    ? `<button class="btn ghost grow" data-act="periodEnded">Period ended</button>`
+    : `<button class="btn ghost grow" data-act="periodStarted">Period started today</button>`;
+  const logged = summary(log);
+  return `${topbar("Shark Week Tracker")}
+  <section class="card">
+    <div class="ringwrap">${ring(m)}<div class="ringmid"><div class="big">${esc(h.big)}</div><div class="phase">${esc(h.phase)}</div><div class="sub">${esc(h.sub)}</div></div></div>
+    <div class="legend" style="justify-content:center;margin-bottom:12px"><span><i class="sw period"></i>Period</span><span><i class="sw foll"></i>Follicular</span><span><i class="sw fert"></i>${S.settings.fertile ? "Fertile (est.)" : "Ovulation (est.)"}</span><span><i class="sw lut"></i>Luteal</span></div>
+    <div class="row"><button class="btn primary grow" data-act="openLog" data-day="${t}">${logged.length ? "Edit today" : "Log today"}</button>${periodBtn}</div>
+    ${logged.length ? `<div class="chips" style="margin-top:12px">${logged.map(x => `<span class="chip tag">${esc(x)}</span>`).join("")}</div>` : ""}
+  </section>
+  ${flags.length ? `<section class="card"><h2>Worth a chat with your GP</h2>${flags.map(f => `<div class="warnbox" style="margin-bottom:8px"><b>${esc(f[0])}.</b> ${esc(f[1])}</div>`).join("")}
+    <p class="small muted">This is a prompt, not a diagnosis. healthdirect: <a href="tel:1800022222">1800 022 222</a> (24/7).</p></section>` : ""}
+  ${ph ? `<section class="card"><div class="row between"><h2 style="margin:0">${esc(ph.name)} phase</h2><span class="sw" style="background:${ph.color};width:14px;height:14px"></span></div>
+    <p class="muted" style="margin-top:6px">${esc(ph.blurb)}</p>
+    ${ph.tips.map(x => tipRow(x, ph.color)).join("")}
+    <button class="link" data-tab="guide">More about your cycle →</button></section>` : ""}
+  ${m.last ? `<section class="card"><h2>Coming up</h2><div class="kv">
+    <span class="k">Next period</span><span>${m.late > 0 ? "Due now" : esc(fmtLong(m.nextStart))}</span>
+    ${S.settings.fertile && m.late <= 0 && m.fertileEnd >= t ? `<span class="k">Fertile window (est.)</span><span>${esc(fmt(m.fertileStart))} – ${esc(fmt(m.fertileEnd))}</span>` : ""}
+    ${m.late <= 0 && m.ovulation >= t ? `<span class="k">Ovulation (${m.ovConfirmed ? "from temps" : "est."})</span><span>${esc(fmt(m.ovulation))}</span>` : ""}
+    <span class="k">Average cycle</span><span>${m.avgCycle} days</span>
+    <span class="k">Average period</span><span>${m.avgPeriod} days</span></div>
+    <p class="small muted" style="margin:10px 0 0">Estimates get better as you log more cycles. Not for contraception.</p></section>`
+  : `<section class="card"><h2>Get started</h2><p class="muted">When did your last period start?</p>
+    <label class="field"><span>First day of your last period</span><input type="date" id="firstStart" max="${t}"></label>
+    <button class="btn primary block" data-act="setFirst">Save</button></section>`}`;
+}
+const tipRow = (x, color) => `<div class="tiprow"><span class="tipdot" style="background:${color}" aria-hidden="true"></span><div><b>${esc(x[1])}</b><span class="small muted">${esc(x[2])}</span></div></div>`;
+const ICONS = {
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  chart: '<path d="M5 20V12M10 20V6M15 20v-9M20 20V9"/>',
+  phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+};
+const icon = k => `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`;
+function summary(log) {
+  const out = [];
+  if (log.flow) out.push(LABEL[log.flow] + (log.flow === "spotting" ? "" : " flow"));
+  for (const k of [...(log.sym || []), ...(log.mood || [])]) out.push(LABEL[k] || k);
+  if (log.pain) out.push(`Pain ${log.pain}/10`);
+  if (log.energy) out.push(`Energy ${log.energy}/5`);
+  if (log.sleep) out.push(`Slept ${log.sleep} h`);
+  if (log.temp) out.push(`${log.temp} °C`);
+  if (log.note) out.push("Note");
+  return out;
+}
+async function setDay(day, patch) {
+  const v = { ...(S.days[day] || {}), ...patch };
+  for (const k of Object.keys(v)) if (v[k] === "" || v[k] == null || (Array.isArray(v[k]) && !v[k].length)) delete v[k];
+  if (Object.keys(v).length) S.days[day] = v; else delete S.days[day];
+  await saveDoc("day:" + day, v);
+}
+ACT.periodStarted = async () => {
+  const t = today();
+  await setDay(t, { flow: (S.days[t] || {}).flow && S.days[t].flow !== "spotting" ? S.days[t].flow : "medium" });
+  toast("Period started. Tap a day in the calendar to change it."); render(); pushReminders();
+};
+/** Asks for the last day of bleeding and fills any unlogged days since the start, so period length is right. */
+ACT.periodEnded = () => {
+  const m = model(), t = today(), y = addDays(t, -1);
+  modal(`<h2>When was your last day of bleeding?</h2><p class="small muted">Started ${esc(fmtLong(m.last.start))}.</p>
+    <div class="row wrapok" style="margin-bottom:12px"><button class="btn ghost grow" data-act="endOn" data-day="${t}">Today</button>${y >= m.last.start ? `<button class="btn ghost grow" data-act="endOn" data-day="${y}">Yesterday</button>` : ""}</div>
+    <label class="field"><span>Or pick a date</span><input type="date" id="endDate" min="${m.last.start}" max="${t}"></label>
+    <button class="btn primary block" data-act="endOn">Save</button>`);
+};
+ACT.endOn = async el => {
+  const m = model(), end = el.dataset.day || $("#endDate").value;
+  if (!end || end < m.last.start || end > today()) return toast("Pick a date between the start of your period and today.");
+  for (let d = m.last.start; d <= end; d = addDays(d, 1)) if (!isBleed(S.days[d])) await setDay(d, { flow: "medium" });
+  for (let d = addDays(end, 1); d <= today(); d = addDays(d, 1)) if (isBleed(S.days[d])) await setDay(d, { flow: "" });
+  history.back(); toast(`Period saved as ${plural(diff(end, m.last.start) + 1, "day")}. Adjust flow per day in the calendar.`);
+};
+ACT.setFirst = async () => {
+  const v = $("#firstStart").value;
+  if (!v || v > today()) return toast("Choose a date up to today.");
+  for (let k = 0; k < Math.min(S.settings.periodLen, diff(today(), v) + 1); k++) await setDay(addDays(v, k), { flow: "medium" });
+  toast("Saved. Adjust the days in the calendar any time."); render(); pushReminders();
+};
+
+// =============================== UI: log sheet ===========================================
+let sheetDay = null, saveTimer = null;
+ACT.openLog = el => openLog(el.dataset.day);
+function openLog(day) {
+  sheetDay = day;
+  const sh = $("#sheet");
+  sh.classList.remove("hidden"); document.body.style.overflow = "hidden";
+  renderSheet(); sh.scrollTop = 0;
+  history.pushState({ sheet: 1 }, "");
+}
+function closeSheet() {
+  if ($("#sheet").classList.contains("hidden")) return false;
+  flushNote();
+  $("#sheet").classList.add("hidden"); document.body.style.overflow = "";
+  render(); pushReminders();
+  return true;
+}
+window.addEventListener("popstate", () => { closeSheet(); closeReport(); });
+// Android back button: close an open sheet first (through history, so the entry pushed on open is used up).
+window.swBack = () => { if ($("#report").classList.contains("hidden") && $("#sheet").classList.contains("hidden")) return false; history.back(); return true; };
+ACT.closeSheet = () => history.state && history.state.sheet ? history.back() : closeSheet();
+ACT.dayPrev = () => { flushNote(); sheetDay = addDays(sheetDay, -1); renderSheet(); };
+ACT.dayNext = () => { flushNote(); if (sheetDay < today()) { sheetDay = addDays(sheetDay, 1); renderSheet(); } };
+function chipset(field, opts, multi, v) {
+  return `<div class="chips" role="group">${opts.map(([k, l]) => {
+    const on = multi ? (v[field] || []).includes(k) : v[field] === k;
+    return `<button class="chip" aria-pressed="${on}" data-act="chip" data-field="${field}" data-k="${k}" data-multi="${multi ? 1 : 0}">${esc(l)}</button>`;
+  }).join("")}</div>`;
+}
+function scale(field, n, v, from = 1) {
+  let s = "";
+  for (let i = from; i <= n; i++) s += `<button class="chip" aria-pressed="${v[field] === i}" data-act="chip" data-field="${field}" data-k="${i}" data-num="1">${i}</button>`;
+  return `<div class="scale" role="group">${s}</div>`;
+}
+function renderSheet() {
+  const v = S.days[sheetDay] || {}, isToday = sheetDay === today();
+  $("#sheet").innerHTML = `<div class="wrap">
+  <div class="sheethead"><button class="iconbtn" data-act="closeSheet" aria-label="Close">✕</button>
+    <button class="iconbtn" data-act="dayPrev" aria-label="Previous day">‹</button>
+    <div class="grow center"><b>${isToday ? "Today" : esc(fmtLong(sheetDay))}</b></div>
+    <button class="iconbtn" data-act="dayNext" aria-label="Next day" ${isToday ? "disabled" : ""}>›</button>
+    <span class="saved" id="saved"></span></div>
+  <div class="sec card"><h3>Period</h3>${chipset("flow", FLOWS, false, v)}</div>
+  <div class="sec card"><h3>Symptoms</h3>${chipset("sym", SYMPTOMS, true, v)}
+    <h3 style="margin-top:14px">Pain <span class="muted small" id="painv">${v.pain ? v.pain + "/10" : "none"}</span></h3>
+    <input type="range" min="0" max="10" value="${v.pain || 0}" id="pain" aria-label="Pain from 0 to 10"></div>
+  <div class="sec card"><h3>Mood</h3>${chipset("mood", MOODS, true, v)}</div>
+  <div class="sec card"><h3>Energy</h3><p class="small muted" style="margin:-4px 0 6px">1 = exhausted, 5 = full of beans</p>${scale("energy", 5, v)}
+    <h3 style="margin-top:14px">Stress</h3><p class="small muted" style="margin:-4px 0 6px">1 = relaxed, 5 = very stressed</p>${scale("stress", 5, v)}</div>
+  <div class="sec card"><h3>Sleep</h3><div class="row"><label class="field grow"><span>Hours slept</span><input type="number" inputmode="decimal" min="0" max="24" step="0.5" id="sleep" value="${esc(v.sleep || "")}"></label></div>
+    <p class="small muted" style="margin:0 0 6px">Quality (1 = poor, 5 = great)</p>${scale("sleepQ", 5, v)}</div>
+  <div class="sec card"><h3>Body signs</h3>
+    <label class="field"><span>Basal body temperature (°C, on waking)</span><input type="number" inputmode="decimal" step="0.01" min="34" max="40" id="temp" value="${esc(v.temp || "")}"></label>
+    <p class="small muted" style="margin:0 0 6px">Cervical mucus</p>${chipset("mucus", MUCUS, false, v)}
+    <p class="small muted" style="margin:12px 0 6px">Ovulation test</p>${chipset("ovt", [["neg", "Negative"], ["pos", "Positive"]], false, v)}
+    <p class="small muted" style="margin:12px 0 6px">Sex drive</p>${chipset("libido", LIBIDO, false, v)}</div>
+  <div class="sec card"><h3>Lifestyle</h3>
+    <p class="small muted" style="margin:0 0 6px">Exercise</p>${chipset("ex", EXERCISE, false, v)}
+    <div class="row" style="margin-top:12px"><label class="field grow"><span>Water (glasses)</span><input type="number" inputmode="numeric" min="0" max="40" id="water" value="${esc(v.water || "")}"></label>
+    <label class="field grow"><span>Alcohol (drinks)</span><input type="number" inputmode="numeric" min="0" max="40" id="alcohol" value="${esc(v.alcohol || "")}"></label>
+    <label class="field grow"><span>Caffeine (cups)</span><input type="number" inputmode="numeric" min="0" max="20" id="caffeine" value="${esc(v.caffeine || "")}"></label></div></div>
+  <div class="sec card"><h3>Medicines & supplements</h3>${chipset("meds", MEDS, true, v)}</div>
+  <div class="sec card"><h3>Notes</h3><textarea id="note" maxlength="2000" aria-label="Notes">${esc(v.note || "")}</textarea></div>
+  <div class="row"><button class="btn ghost grow" data-act="clearDay">Clear this day</button><button class="btn primary grow" data-act="closeSheet">Done</button></div>
+  </div>`;
+}
+ACT.chip = async el => {
+  const f = el.dataset.field, k = el.dataset.num ? +el.dataset.k : el.dataset.k, v = S.days[sheetDay] || {};
+  let val;
+  if (el.dataset.multi === "1") { const a = new Set(v[f] || []); a.has(k) ? a.delete(k) : a.add(k); val = [...a]; }
+  else val = v[f] === k ? "" : k;
+  await setDay(sheetDay, { [f]: val });
+  if (el.dataset.multi === "1") el.setAttribute("aria-pressed", val.includes(k));
+  else $$(`[data-field="${f}"]`, $("#sheet")).forEach(b => b.setAttribute("aria-pressed", String(b.dataset.num ? +b.dataset.k : b.dataset.k) === String(val)));
+  flashSaved();
+};
+ACT.clearDay = async () => { delete S.days[sheetDay]; await saveDoc("day:" + sheetDay, {}); renderSheet(); flashSaved(); };
+function flashSaved() { const s = $("#saved"); if (s) { s.textContent = "Saved ✓"; clearTimeout(s._t); s._t = setTimeout(() => s.textContent = "", 1500); } }
+const NUMS = { sleep: [0, 24], temp: [34, 40], water: [0, 40], alcohol: [0, 40], caffeine: [0, 20] };
+$("#sheet").addEventListener("input", e => {
+  const id = e.target.id;
+  if (id === "pain") { $("#painv").textContent = +e.target.value ? e.target.value + "/10" : "none"; clearTimeout(saveTimer); saveTimer = setTimeout(() => setDay(sheetDay, { pain: +e.target.value || "" }).then(flashSaved), 400); }
+  if (id === "note") { clearTimeout(saveTimer); saveTimer = setTimeout(flushNote, 800); }
+});
+$("#sheet").addEventListener("change", e => {
+  const id = e.target.id;
+  if (NUMS[id]) {
+    const x = e.target.value === "" ? "" : +e.target.value;
+    if (x !== "" && (isNaN(x) || x < NUMS[id][0] || x > NUMS[id][1])) { toast(`Enter a number from ${NUMS[id][0]} to ${NUMS[id][1]}.`); return; }
+    setDay(sheetDay, { [id]: x === "" ? "" : Math.round(x * 100) / 100 }).then(flashSaved);
+  }
+});
+function flushNote() {
+  const n = $("#note"); if (!n || !sheetDay) return;
+  const val = n.value.slice(0, 2000);
+  if (((S.days[sheetDay] || {}).note || "") !== val) setDay(sheetDay, { note: val }).then(flashSaved);
+}
+
+// =============================== UI: calendar ============================================
+function viewCalendar() {
+  const t = today();
+  if (!S.calMonth) S.calMonth = t.slice(0, 7);
+  const [y, mo] = S.calMonth.split("-").map(Number);
+  const m = model(), info = dayInfo(m);
+  const first = new Date(y, mo - 1, 1, 12), lead = (first.getDay() + 6) % 7; // Monday first (AU)
+  const dim = new Date(y, mo, 0).getDate();
+  let cells = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => `<div class="dow" aria-hidden="true">${d}</div>`).join("");
+  for (let i = 0; i < lead; i++) cells += `<div class="day out"></div>`;
+  for (let d = 1; d <= dim; d++) {
+    const s = `${y}-${pad(mo)}-${pad(d)}`, v = S.days[s], inf = info[s] || {};
+    const cls = ["day"]; const desc = [];
+    if (s > t) cls.push("future");
+    if (v && isBleed(v)) { cls.push("period"); desc.push("period"); }
+    else if (v && v.flow === "spotting") { cls.push("spot"); desc.push("spotting"); }
+    else if (inf.pred && s >= t) { cls.push("pred"); desc.push("predicted period"); }
+    if (inf.fw && !(v && isBleed(v))) { cls.push("fw"); desc.push("fertile window"); }
+    if (inf.ov) { cls.push("ov"); desc.push("estimated ovulation"); }
+    if (s === t) { cls.push("today"); desc.push("today"); }
+    const dot = v && Object.keys(v).some(k => k !== "flow");
+    cells += `<button class="${cls.join(" ")}" data-act="calDay" data-day="${s}" aria-label="${esc(fmtLong(s))}${desc.length ? ", " + desc.join(", ") : ""}${dot ? ", has logs" : ""}">${d}${dot ? '<span class="dot"></span>' : ""}</button>`;
+  }
+  return `${topbar("Calendar")}
+  <section class="card">
+    ${S.calEdit ? `<div class="editbar"><span class="grow">Tap days to mark or unmark them as period days.</span><button class="btn" data-act="calEdit">Done</button></div>` : ""}
+    <div class="calhead"><button data-act="calMove" data-n="-1" aria-label="Previous month">‹</button><h2 style="margin:0">${MONTHS[mo - 1]} ${y}</h2><button data-act="calMove" data-n="1" aria-label="Next month">›</button></div>
+    <div class="calgrid">${cells}</div>
+    <div class="legend" style="margin-top:12px"><span><i class="sw period"></i>Period</span><span><i class="sw pred"></i>Predicted period</span>${S.settings.fertile ? `<span><i class="sw fw"></i>Fertile window (est.)</span>` : ""}<span><i class="sw ov"></i>Ovulation (est.)</span></div>
+  </section>
+  <div class="row">${S.calEdit ? "" : `<button class="btn primary grow" data-act="calEdit">Edit period days</button>`}<button class="btn ghost grow" data-act="calToday">Today</button></div>`;
+}
+ACT.calMove = el => { const [y, m] = S.calMonth.split("-").map(Number); const d = new Date(y, m - 1 + +el.dataset.n, 1); S.calMonth = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; render(); };
+ACT.calToday = () => { S.calMonth = today().slice(0, 7); render(); };
+ACT.calEdit = () => { S.calEdit = !S.calEdit; render(); if (!S.calEdit) pushReminders(); };
+ACT.calDay = async el => {
+  const d = el.dataset.day;
+  if (d > today()) return toast("You can log days up to today.");
+  if (!S.calEdit) return openLog(d);
+  const v = S.days[d] || {};
+  await setDay(d, { flow: isBleed(v) ? "" : "medium" });
+  render();
+};
+
+// =============================== UI: insights + charts ===================================
+const tipEl = $("#tip");
+function showTip(text, x, y) {
+  tipEl.textContent = text; tipEl.classList.remove("hidden");
+  const r = tipEl.getBoundingClientRect();
+  tipEl.style.left = Math.max(8, Math.min(innerWidth - r.width - 8, x - r.width / 2)) + "px";
+  tipEl.style.top = Math.max(8, y - r.height - 14) + "px";
+}
+document.addEventListener("pointerover", e => { const t = e.target.closest("[data-tip]"); if (t) showTip(t.dataset.tip, e.clientX, e.clientY); else tipEl.classList.add("hidden"); });
+document.addEventListener("pointermove", e => { const t = e.target.closest("[data-tip]"); if (t) showTip(t.dataset.tip, e.clientX, e.clientY); });
+document.addEventListener("pointerdown", e => { const t = e.target.closest("[data-tip]"); if (t) showTip(t.dataset.tip, e.clientX, e.clientY); else tipEl.classList.add("hidden"); });
+addEventListener("scroll", () => tipEl.classList.add("hidden"), { passive: true });
+
+function bars(items, { band, avg, unit, h = 170 }) {
+  // items: [{label, value, tip}]; single series, so the title names it (no legend).
+  const W = 360, pl = 26, pr = 6, pt = 14, pb = 24, ih = h - pt - pb, n = items.length;
+  const max = Math.max(...items.map(i => i.value), band ? band[1] : 0, avg || 0) * 1.1;
+  const nice = Math.ceil(max / 10) * 10, y = v => pt + ih - v / nice * ih;
+  const slot = (W - pl - pr) / n, bw = Math.min(24, slot - 2);
+  let s = "";
+  for (let v = 0; v <= nice; v += nice > 40 ? 20 : 10) s += `<line class="grid" x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}"/><text x="${pl - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  if (band) s += `<rect class="band" x="${pl}" width="${W - pl - pr}" y="${y(band[1])}" height="${y(band[0]) - y(band[1])}"/>`;
+  items.forEach((it, i) => {
+    const x = pl + i * slot + (slot - bw) / 2, top = y(it.value), r = Math.min(4, (pt + ih - top));
+    s += `<path d="M${x} ${pt + ih}V${top + r}q0 -${r} ${r} -${r}h${bw - 2 * r}q${r} 0 ${r} ${r}V${pt + ih}z" fill="var(--period)"/>`;
+    s += `<rect x="${pl + i * slot}" y="${pt}" width="${slot}" height="${ih}" fill="transparent" data-tip="${esc(it.tip)}"/>`;
+    if (n <= 6 || i % Math.ceil(n / 6) === 0 || i === n - 1) s += `<text x="${x + bw / 2}" y="${h - 8}" text-anchor="middle">${esc(it.label)}</text>`;
+    if (i === n - 1) s += `<text x="${x + bw / 2}" y="${top - 5}" text-anchor="middle" style="fill:var(--text);font-weight:600">${it.value}</text>`;
+  });
+  if (avg) s += `<line class="avg" x1="${pl}" x2="${W - pr}" y1="${y(avg)}" y2="${y(avg)}"/><text x="${pl + 4}" y="${y(avg) - 4}" style="fill:var(--text)">avg ${avg}${unit}</text>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${h}" role="img">${s}</svg>`;
+}
+/** Cycle-aligned rows for analysis: every cycle (including the current one), day 1 = first period day. */
+function alignedCycles(m) {
+  const starts = m.periods.map(p => p.start);
+  return starts.map((st, i) => ({ start: st, len: i + 1 < starts.length ? diff(starts[i + 1], st) : diff(today(), st) + 1, done: i + 1 < starts.length }))
+    .filter(c => c.len <= 60);
+}
+function symptomStats(m, N) {
+  const cyc = alignedCycles(m), counts = {}, grid = {};
+  for (const c of cyc) for (let d = 1; d <= Math.min(c.len, N); d++) {
+    const v = S.days[addDays(c.start, d - 1)]; if (!v) continue;
+    for (const k of [...(v.sym || []), ...(v.mood || []).filter(x => ["irritable", "anxious", "sad", "swings", "sensitive", "low"].includes(x))]) {
+      counts[k] = (counts[k] || 0) + 1; ((grid[k] = grid[k] || {})[d] = (grid[k][d] || 0) + 1);
+    }
+  }
+  // also count days just before each period start as negative days (premenstrual), aligned to the next cycle
+  const pre = {};
+  for (let i = 1; i < cyc.length; i++) for (let k = 1; k <= 7; k++) {
+    const v = S.days[addDays(cyc[i].start, -k)]; if (!v) continue;
+    for (const s of [...(v.sym || []), ...(v.mood || [])]) ((pre[s] = pre[s] || {})[k] = (pre[s][k] || 0) + 1);
+  }
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(x => x[0]);
+  return { cyc, counts, grid, top, pre };
+}
+function heatmap(m) {
+  const N = Math.min(45, Math.max(28, m.avgCycle + 2));
+  const st = symptomStats(m, N);
+  if (!st.top.length) return { svg: `<p class="muted">Log some symptoms and this map will show when in your cycle they tend to happen.</p>`, rows: [] };
+  const W = 360, lw = 92, cw = (W - lw - 2) / N, rh = 22, H = st.top.length * rh + 34;
+  let s = "", rows = [];
+  st.top.forEach((k, r) => {
+    s += `<text x="${lw - 6}" y="${r * rh + rh / 2 + 4}" text-anchor="end" style="fill:var(--text)">${esc(LABEL[k] || k)}</text>`;
+    const row = [LABEL[k] || k];
+    for (let d = 1; d <= N; d++) {
+      const c = (st.grid[k] || {})[d] || 0, eligible = st.cyc.filter(x => x.len >= d).length || 1, f = c / eligible;
+      s += `<rect class="cell" x="${lw + (d - 1) * cw + .5}" y="${r * rh + 2}" width="${Math.max(1, cw - 1)}" height="${rh - 4}" rx="2" fill="var(--period)" fill-opacity="${c ? 0.15 + 0.85 * f : 0.05}" data-tip="${esc(`${LABEL[k] || k} · cycle day ${d} · ${c} of ${eligible} cycle${eligible === 1 ? "" : "s"}`)}"/>`;
+      row.push(c);
+    }
+    rows.push(row);
+  });
+  const ovDay = m.avgCycle - m.luteal;
+  for (const d of [1, 7, 14, 21, 28, 35, 42].filter(d => d <= N)) s += `<text x="${lw + (d - .5) * cw}" y="${H - 6}" text-anchor="middle">${d}</text>`;
+  s += `<text x="${lw + (ovDay - .5) * cw}" y="${st.top.length * rh + 10}" text-anchor="middle" style="fill:var(--fert);font-weight:700;font-size:9px" aria-hidden="true">▲</text>`;
+  return { svg: `<svg class="chart hm" viewBox="0 0 ${W} ${H}" role="img" aria-label="Symptoms by cycle day">${s}</svg>
+    <div class="legend" style="margin-top:6px"><span>Cycle day →</span><span><i class="sw" style="background:var(--period);opacity:.25"></i>sometimes</span><span><i class="sw period"></i>most cycles</span><span><b style="color:var(--fert)">▲</b>&nbsp;typical ovulation</span></div>`,
+    rows, cols: ["Symptom", ...Array.from({ length: N }, (_, i) => "D" + (i + 1))], N };
+}
+const METRICS = { energy: ["Energy", "1–5", 5], sleep: ["Sleep", "hours", 12], stress: ["Stress", "1–5", 5], pain: ["Pain", "0–10", 10], sleepQ: ["Sleep quality", "1–5", 5] };
+function lineByDay(m, key) {
+  const N = Math.min(45, Math.max(28, m.avgCycle + 2)), cyc = alignedCycles(m), sum = {}, cnt = {};
+  for (const c of cyc) for (let d = 1; d <= Math.min(c.len, N); d++) { const v = S.days[addDays(c.start, d - 1)]; if (v && v[key] != null && v[key] !== "") { sum[d] = (sum[d] || 0) + +v[key]; cnt[d] = (cnt[d] || 0) + 1; } }
+  const pts = []; for (let d = 1; d <= N; d++) if (cnt[d]) pts.push({ d, v: sum[d] / cnt[d], n: cnt[d] });
+  if (pts.length < 3) return { svg: `<p class="muted">Log ${METRICS[key][0].toLowerCase()} on a few more days to see how it moves through your cycle.</p>`, rows: [] };
+  // 3-day smoothing
+  const sm = pts.map((p, i) => { const w = pts.filter(q => Math.abs(q.d - p.d) <= 1); return { ...p, s: w.reduce((a, q) => a + q.v, 0) / w.length }; });
+  const W = 360, H = 170, pl = 26, pr = 8, pt = 10, pb = 24, ih = H - pt - pb, max = METRICS[key][2];
+  const x = d => pl + (d - 1) / (N - 1) * (W - pl - pr), y = v => pt + ih - v / max * ih;
+  let s = "";
+  // phase background bands (light wash): period, fertile, luteal
+  const ovDay = m.avgCycle - m.luteal;
+  s += `<rect x="${x(1)}" y="${pt}" width="${x(m.avgPeriod + .5) - x(1)}" height="${ih}" fill="var(--period-wash)"/>`;
+  s += `<rect x="${x(ovDay - 5)}" y="${pt}" width="${x(ovDay + 1) - x(ovDay - 5)}" height="${ih}" fill="var(--fert-wash)"/>`;
+  for (const v of [0, max / 2, max]) s += `<line class="grid" x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}"/><text x="${pl - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  for (const d of [1, 7, 14, 21, 28, 35, 42].filter(d => d <= N)) s += `<text x="${x(d)}" y="${H - 8}" text-anchor="middle">${d}</text>`;
+  s += `<path d="${sm.map((p, i) => (i ? "L" : "M") + x(p.d).toFixed(1) + " " + y(p.s).toFixed(1)).join("")}" fill="none" stroke="var(--foll)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  const lp = sm[sm.length - 1];
+  s += `<circle cx="${x(lp.d)}" cy="${y(lp.s)}" r="4.5" fill="var(--foll)" stroke="var(--surface)" stroke-width="2"/>`;
+  for (const p of sm) s += `<rect x="${x(p.d) - (W - pl - pr) / N / 2}" y="${pt}" width="${(W - pl - pr) / N}" height="${ih}" fill="transparent" data-tip="${esc(`Cycle day ${p.d}: ${METRICS[key][0]} ${p.v.toFixed(1)} (avg of ${p.n} day${p.n === 1 ? "" : "s"})`)}"/>`;
+  return { svg: `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${METRICS[key][0]} by cycle day">${s}</svg>
+    <div class="legend" style="margin-top:6px"><span>Cycle day →</span><span><i class="sw" style="background:var(--period-wash)"></i>typical period</span><span><i class="sw fw"></i>typical fertile window</span></div>`,
+    rows: pts.map(p => [p.d, p.v.toFixed(1), p.n]), cols: ["Cycle day", "Average", "Days logged"] };
+}
+function bbtChart(m) {
+  const cyc = alignedCycles(m).reverse(); // newest first
+  if (!cyc.length) return { svg: "", rows: [] };
+  const idx = Math.min(S.insight.bbt, cyc.length - 1), c = cyc[idx];
+  const end = addDays(c.start, c.len - 1), pts = [];
+  for (let d = 1; d <= c.len; d++) { const t = +(S.days[addDays(c.start, d - 1)] || {}).temp; if (t > 34 && t < 40) pts.push({ d, t }); }
+  const nav = `<div class="row between" style="margin-bottom:6px"><button class="iconbtn" data-act="bbt" data-n="1" ${idx >= cyc.length - 1 ? "disabled" : ""} aria-label="Older cycle">‹</button>
+    <span class="small muted">Cycle from ${esc(fmt(c.start))}${c.done ? "" : " (current)"}</span><button class="iconbtn" data-act="bbt" data-n="-1" ${idx === 0 ? "disabled" : ""} aria-label="Newer cycle">›</button></div>`;
+  if (pts.length < 3) return { svg: nav + `<p class="muted">Log your temperature each morning before getting up. After ovulation it rises by about 0.2–0.5 °C and stays up until your period.</p>`, rows: [] };
+  const shift = bbtShift(c.start, end);
+  const N = Math.max(c.len, 28), W = 360, H = 180, pl = 34, pr = 8, pt = 16, pb = 24, ih = H - pt - pb;
+  const lo = Math.floor((Math.min(...pts.map(p => p.t)) - .1) * 10) / 10, hi = Math.ceil((Math.max(...pts.map(p => p.t)) + .1) * 10) / 10;
+  const x = d => pl + (d - 1) / (N - 1) * (W - pl - pr), y = v => pt + ih - (v - lo) / (hi - lo) * ih;
+  let s = "";
+  for (let v = lo; v <= hi + 1e-9; v += (hi - lo) > 1 ? .2 : .1) s += `<line class="grid" x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}"/><text x="${pl - 6}" y="${y(v) + 4}" text-anchor="end">${v.toFixed(1)}</text>`;
+  for (const d of [1, 7, 14, 21, 28, 35, 42].filter(d => d <= N)) s += `<text x="${x(d)}" y="${H - 8}" text-anchor="middle">${d}</text>`;
+  if (shift) {
+    const od = diff(shift.ovulation, c.start) + 1;
+    s += `<line x1="${pl}" x2="${W - pr}" y1="${y(shift.cover)}" y2="${y(shift.cover)}" stroke="var(--fert)" stroke-width="1.5" stroke-dasharray="5 4"/><text x="${W - pr}" y="${y(shift.cover) - 5}" text-anchor="end" style="fill:var(--text)">coverline ${shift.cover.toFixed(2)}°</text>`;
+    s += `<line x1="${x(od)}" x2="${x(od)}" y1="${pt}" y2="${pt + ih}" stroke="var(--fert)" stroke-width="2"/><text x="${x(od) + (od > N * .6 ? -4 : 4)}" y="${pt - 4}" text-anchor="${od > N * .6 ? "end" : "start"}" style="fill:var(--text)">likely ovulation · day ${od}</text>`;
+  }
+  s += `<path d="${pts.map((p, i) => (i ? "L" : "M") + x(p.d).toFixed(1) + " " + y(p.t).toFixed(1)).join("")}" fill="none" stroke="var(--lut)" stroke-width="2" stroke-linejoin="round"/>`;
+  for (const p of pts) s += `<circle cx="${x(p.d)}" cy="${y(p.t)}" r="4" fill="var(--lut)" stroke="var(--surface)" stroke-width="2"/><circle cx="${x(p.d)}" cy="${y(p.t)}" r="12" fill="transparent" data-tip="Day ${p.d} (${esc(fmt(addDays(c.start, p.d - 1)))}): ${p.t.toFixed(2)} °C"/>`;
+  return { svg: nav + `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Temperature chart">${s}</svg>`,
+    rows: pts.map(p => [p.d, fmt(addDays(c.start, p.d - 1)), p.t.toFixed(2)]), cols: ["Cycle day", "Date", "°C"] };
+}
+ACT.bbt = el => { S.insight.bbt = Math.max(0, S.insight.bbt + +el.dataset.n); render(); };
+ACT.metric = el => { S.insight.metric = el.dataset.k; render(); };
+ACT.table = el => { S.insight.tables[el.dataset.k] = !S.insight.tables[el.dataset.k]; render(); };
+function tableHtml(cols, rows) {
+  if (!rows.length) return "";
+  return `<div style="overflow-x:auto"><table class="data"><thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+function chartCard(key, title, sub, body, cols, rows) {
+  const open = S.insight.tables[key];
+  return `<section class="card"><div class="row between"><div><h2 style="margin:0">${esc(title)}</h2>${sub ? `<p class="small muted" style="margin:2px 0 8px">${esc(sub)}</p>` : ""}</div>
+    ${rows && rows.length ? `<button class="link small" data-act="table" data-k="${key}">${open ? "Chart" : "Table"}</button>` : ""}</div>
+    ${open ? tableHtml(cols, rows) : body}</section>`;
+}
+function patterns(m) {
+  const N = 45, st = symptomStats(m, N), out = [], pms = [], during = [], spread = [];
+  const list = a => a.length > 1 ? a.slice(0, -1).join(", ") + " and " + a[a.length - 1] : a[0];
+  for (const k of st.top.slice(0, 6)) {
+    let men = 0, preN = 0, tot = 0;
+    for (const [d, c] of Object.entries(st.grid[k] || {})) { tot += c; if (+d <= m.avgPeriod) men += c; }
+    for (let d = 1; d <= 5; d++) preN += (st.pre[k] || {})[d] || 0;
+    const name = LABEL[k] || k;
+    if (tot < 3) continue;
+    if (preN / tot >= 0.5) pms.push(name); else if (men / tot >= 0.6) during.push(name); else spread.push(name);
+  }
+  const b = a => a.map(x => `<b>${esc(x)}</b>`);
+  if (pms.length) out.push(`${list(b(pms))} mostly show${pms.length === 1 ? "s" : ""} up in the 5 days before your period — a premenstrual pattern. Lighter plans, steady meals and less caffeine and alcohol then may help.`);
+  if (during.length) out.push(`${list(b(during))} mostly happen${during.length === 1 ? "s" : ""} during your period.`);
+  if (spread.length) out.push(`${list(b(spread))} ${spread.length === 1 ? "is" : "are"} spread across your cycle, so ${spread.length === 1 ? "it" : "they"} may be linked to something else — sleep, stress or food.`);
+  const e = lineByDay(m, "energy").rows;
+  if (e.length >= 10) {
+    const hi = e.reduce((a, b) => +b[1] > +a[1] ? b : a), lo = e.reduce((a, b) => +b[1] < +a[1] ? b : a);
+    out.push(`<b>Energy</b> tends to peak around cycle day ${hi[0]} and dip around day ${lo[0]}.`);
+  }
+  const sleepDays = Object.entries(S.days).filter(([, v]) => v.sleep && (v.sym || []).length);
+  const shortS = sleepDays.filter(([, v]) => v.sleep < 6.5), longS = sleepDays.filter(([, v]) => v.sleep >= 7);
+  if (shortS.length >= 5 && longS.length >= 5) {
+    const avgSym = a => a.reduce((x, [, v]) => x + v.sym.length, 0) / a.length;
+    const a = avgSym(shortS), b = avgSym(longS);
+    if (a > b * 1.25) out.push(`On days after <b>less than 6.5 hours' sleep</b> you log about ${Math.round((a / b - 1) * 100)}% more symptoms.`);
+  }
+  return out;
+}
+function viewInsights() {
+  const m = model(), cyc = m.cycles.slice(-12);
+  if (!m.periods.length) return `${topbar("Insights")}<section class="card"><h2>Nothing to chart yet</h2><p class="muted">Log at least one period and some symptoms. Charts appear once you have a cycle or two.</p></section>`;
+  const stats = `<div class="stats">
+    <div class="stat"><div class="l">Average cycle</div><div class="v">${m.valid.length ? m.avgCycle : "—"}${m.valid.length ? '<span class="small"> days</span>' : ""}</div><div class="d">${m.valid.length ? `last ${plural(m.valid.length, "cycle")}` : "needs 2 periods"}</div></div>
+    <div class="stat"><div class="l">Average period</div><div class="v">${m.avgPeriod}<span class="small"> days</span></div><div class="d">${m.periods.length >= 2 ? "from your logs" : "from your settings"}</div></div>
+    <div class="stat"><div class="l">Cycle variation</div><div class="v">${m.range == null ? "—" : m.range + '<span class="small"> days</span>'}</div><div class="d">${m.range == null ? "needs 3 cycles" : m.range <= 7 ? "regular" : m.range <= 20 ? "somewhat irregular" : "irregular"}</div></div>
+    <div class="stat"><div class="l">Cycles tracked</div><div class="v">${m.periods.length}</div><div class="d">since ${esc(fmt(m.periods[0].start, { month: "short", year: "numeric" }))}</div></div></div>`;
+  const cl = cyc.map(c => ({ label: fmt(c.start, { month: "short" }), value: c.len, tip: `Cycle from ${fmt(c.start)}: ${c.len} days (period ${c.periodLen} days)` }));
+  const pl = m.periods.slice(-12).map(p => ({ label: fmt(p.start, { month: "short" }), value: p.len, tip: `Period from ${fmt(p.start)}: ${plural(p.len, "day")}` }));
+  const clRows = cyc.map(c => [fmt(c.start, { day: "numeric", month: "short", year: "numeric" }), c.len, c.periodLen]);
+  const hm = heatmap(m), ln = lineByDay(m, S.insight.metric), bb = bbtChart(m), pats = patterns(m);
+  const seg = `<div class="seg" role="group" aria-label="Measure" style="margin-bottom:10px">${Object.entries(METRICS).map(([k, v]) => `<button data-act="metric" data-k="${k}" aria-pressed="${S.insight.metric === k}">${v[0]}</button>`).join("")}</div>`;
+  return `${topbar("Insights")}${stats}
+  ${pats.length ? `<section class="card"><h2>Your patterns</h2>${pats.map(p => `<div class="pattern">${p}</div>`).join("")}</section>` : ""}
+  ${cl.length ? chartCard("cl", "Cycle length", "Days from one period to the next. Shaded: the typical 21–35 day range.", bars(cl, { band: [21, 35], avg: m.avgCycle, unit: "d" }), ["Started", "Cycle (days)", "Period (days)"], clRows)
+    : `<section class="card"><h2>Cycle length</h2><p class="muted">Appears after your second logged period.</p></section>`}
+  ${chartCard("pl", "Period length", "Days of bleeding each period (spotting not counted).", bars(pl, { avg: m.avgPeriod, unit: "d", h: 150 }), ["Started", "Days"], m.periods.slice(-12).map(p => [fmt(p.start, { day: "numeric", month: "short", year: "numeric" }), p.len]))}
+  ${chartCard("hm", "When symptoms happen", "How often each symptom shows up on each day of your cycle.", hm.svg, hm.cols, hm.rows)}
+  ${chartCard("ln", "How you feel through your cycle", `Average ${METRICS[S.insight.metric][0].toLowerCase()} (${METRICS[S.insight.metric][1]}) by cycle day, smoothed over 3 days.`, seg + ln.svg, ln.cols, ln.rows)}
+  ${chartCard("bbt", "Temperature", "Basal body temperature. A sustained rise usually means ovulation happened.", bb.svg, bb.cols, bb.rows)}
+  <button class="btn ghost block" data-act="report">Summary for your doctor</button>`;
+}
+
+// doctor summary (printable)
+ACT.report = () => {
+  const m = model(), flags = healthFlags(m), rows = [];
+  for (const p of m.periods.slice(-6).reverse()) {
+    const c = m.cycles.find(x => x.start === p.start);
+    let heavy = 0, pain = 0; const sym = {};
+    for (let d = addDays(p.start, -3); d <= p.end; d = addDays(d, 1)) { const v = S.days[d] || {}; if (v.flow === "heavy") heavy++; pain = Math.max(pain, v.pain || 0); for (const s of v.sym || []) sym[s] = (sym[s] || 0) + 1; }
+    rows.push([fmt(p.start, { day: "numeric", month: "short", year: "numeric" }), c ? c.len : "current", p.len, heavy, pain ? pain + "/10" : "—", Object.entries(sym).sort((a, b) => b[1] - a[1]).slice(0, 4).map(x => LABEL[x[0]]).join(", ") || "—"]);
+  }
+  const r = $("#report");
+  r.innerHTML = `<div class="wrap"><div class="row noprint" style="margin:10px 0"><button class="btn ghost" data-act="closeReport">Close</button><button class="btn primary" data-act="print">Print / save as PDF</button></div>
+    <h1>Cycle summary</h1><p class="muted">Prepared ${esc(fmtLong(today()))} from Shark Week Tracker logs. Self-reported; not a medical record.</p>
+    <div class="kv" style="margin-bottom:12px"><span class="k">Average cycle (last ${m.valid.length})</span><span>${m.valid.length ? m.avgCycle + " days" : "—"}</span>
+    <span class="k">Cycle range</span><span>${m.valid.length ? Math.min(...m.valid.map(c => c.len)) + "–" + Math.max(...m.valid.map(c => c.len)) + " days" : "—"}</span>
+    <span class="k">Average period</span><span>${m.avgPeriod} days</span><span class="k">Last period started</span><span>${m.last ? esc(fmtLong(m.last.start)) : "—"}</span></div>
+    ${tableHtml(["Period start", "Cycle length", "Period days", "Heavy days", "Worst pain", "Common symptoms"], rows)}
+    ${flags.length ? `<h2 style="margin-top:16px">Things flagged</h2><ul>${flags.map(f => `<li><b>${esc(f[0])}</b>: ${esc(f[1])}</li>`).join("")}</ul>` : ""}</div>`;
+  r.classList.remove("hidden"); history.pushState({ sheet: 1 }, "");
+};
+function closeReport() { $("#report").classList.add("hidden"); }
+ACT.closeReport = () => history.back();
+ACT.print = () => print();
+
+// =============================== UI: health guide ========================================
+function viewGuide() {
+  const m = model();
+  return `${topbar("Health")}
+  <section class="card"><h2>Your cycle, phase by phase</h2><p class="muted">Hormones shift through your cycle, and so can energy, sleep, appetite and mood. Use these as ideas to try — then check your own patterns in Insights.</p></section>
+  ${Object.entries(PHASES).map(([k, p]) => `<section class="card"><div class="row between"><h2 style="margin:0">${esc(p.name)}</h2>${m.last && m.phase === k ? '<span class="chip tag">You are here</span>' : ""}</div>
+    <p class="muted" style="margin-top:6px">${esc(p.blurb)}</p>${p.tips.map(x => tipRow(x, p.color)).join("")}</section>`).join("")}
+  <section class="card"><h2>When to see a doctor</h2><ul class="tips">
+    <li>Periods that stop you going to school, work or doing normal things</li><li>Soaking a pad or tampon every 1–2 hours, or clots bigger than a 50c coin</li>
+    <li>Bleeding between periods, after sex, or after menopause</li><li>Cycles shorter than 21 or longer than 35 days, or no period for 3 months</li>
+    <li>Feeling very low or anxious before periods (it could be PMDD, which is treatable)</li></ul>
+    <p class="small" style="margin-top:10px">Talk to your GP or call <b>healthdirect</b> on <a href="tel:1800022222">1800 022 222</a> (24/7). Trusted info: <a href="https://www.jeanhailes.org.au" target="_blank" rel="noopener noreferrer">Jean Hailes for Women's Health</a>, <a href="https://www.healthdirect.gov.au/periods" target="_blank" rel="noopener noreferrer">healthdirect</a>. In an emergency call <b>000</b>.</p></section>
+  <p class="small muted center">Shark Week Tracker gives general information, not medical advice. It is not a contraceptive and is not intended to diagnose or treat any condition.</p>`;
+}
+
+// =============================== UI: me / settings =======================================
+function viewMe() {
+  const st = S.settings, r = st.remind;
+  return `${topbar("Me")}
+  <section class="card"><h2>Account</h2><div class="kv"><span class="k">Signed in as</span><span>${esc(S.auth.email)}</span>
+    <span class="k">Last sync</span><span>${S.sync.at ? esc(new Date(S.sync.at).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" })) : "—"}</span></div>
+    <p class="small muted" style="margin-top:10px">Your logs are end-to-end encrypted. Sign in on any device with your email and password to get them back.</p>
+    <div class="row wrapok"><button class="btn ghost grow" data-act="syncNow">Sync now</button><button class="btn ghost grow" data-act="signOut">Sign out</button></div></section>
+  <section class="card"><h2>Your cycle</h2><p class="small muted">Used until you've logged enough cycles for averages.</p>
+    <div class="row"><label class="field grow"><span>Usual cycle (days)</span><input type="number" id="s_cycleLen" min="15" max="90" value="${st.cycleLen}"></label>
+    <label class="field grow"><span>Usual period (days)</span><input type="number" id="s_periodLen" min="1" max="15" value="${st.periodLen}"></label>
+    <label class="field grow"><span>Luteal phase (days)</span><input type="number" id="s_luteal" min="8" max="18" value="${st.luteal}"></label></div>
+    <label class="check"><input type="checkbox" id="s_fertile" ${st.fertile ? "checked" : ""}><span>Show estimated fertile window</span></label></section>
+  ${NATIVE ? `<section class="card"><h2>Reminders</h2>
+    <label class="check"><input type="checkbox" id="r_on" ${r.on ? "checked" : ""}><span>Remind me before my period</span></label>
+    <div class="row"><label class="field grow"><span>Days before</span><select id="r_before">${[1, 2, 3, 5, 7].map(n => `<option ${r.before === n ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+    <label class="field grow"><span>Time</span><select id="r_hour">${Array.from({ length: 16 }, (_, i) => i + 6).map(h => `<option value="${h}" ${r.hour === h ? "selected" : ""}>${h % 12 || 12} ${h < 12 ? "am" : "pm"}</option>`).join("")}</select></label></div>
+    <label class="check"><input type="checkbox" id="r_daily" ${r.daily ? "checked" : ""}><span>Daily reminder to log</span></label>
+    ${st.fertile ? `<label class="check"><input type="checkbox" id="r_fertile" ${r.fertile ? "checked" : ""}><span>Remind me when my fertile window starts</span></label>` : ""}
+    <label class="check"><input type="checkbox" id="r_discreet" ${r.discreet ? "checked" : ""}><span>Discreet notifications (no mention of periods)</span></label></section>` : ""}
+  <section class="card"><h2>Privacy & security</h2>
+    ${NATIVE ? `<label class="check"><input type="checkbox" id="s_secure" ${st.secure ? "checked" : ""}><span>Hide app in recent-apps screen and block screenshots</span></label>` : ""}
+    <label class="field"><span>Appearance</span><select id="s_theme">${[["auto", "Match device"], ["light", "Light"], ["dark", "Dark"]].map(([k, l]) => `<option value="${k}" ${st.theme === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+    <h3 style="margin-top:6px">Devices signed in</h3><div class="list" id="sessions"><div class="muted small">Loading…</div></div>
+    <div class="row wrapok" style="margin-top:8px"><button class="btn ghost grow" data-act="endOthers">Sign out other devices</button></div>
+    <div class="row wrapok" style="margin-top:8px"><button class="btn ghost grow" data-act="changePw">Change password</button><button class="btn ghost grow" data-act="newRec">New recovery code</button></div></section>
+  <section class="card"><h2>Your data</h2><p class="small muted">Download everything you've logged (decrypted, on this device only).</p>
+    <div class="row wrapok"><button class="btn ghost grow" data-act="export" data-k="json">Download JSON</button><button class="btn ghost grow" data-act="export" data-k="csv">Download CSV</button></div>
+    <div class="row wrapok" style="margin-top:8px"><button class="btn ghost grow" data-act="report">Summary for your doctor</button></div>
+    <div class="row" style="margin-top:8px"><button class="btn danger grow" data-act="deleteAcct">Delete account and all data</button></div></section>
+  <section class="card"><h2>About</h2><p class="small muted">Shark Week Tracker ${NATIVE && NATIVE.version ? esc(NATIVE.version()) : APP_VERSION + " (web " + esc(BUILD) + ")"}. General wellbeing information only — not medical advice, not a contraceptive, and not a medical device.</p>
+    <div class="row wrapok"><a class="btn ghost grow center" href="/privacy" style="text-decoration:none">Privacy Policy</a><a class="btn ghost grow center" href="/terms" style="text-decoration:none">Terms of Use</a></div>
+    <div class="row" style="margin-top:8px"><button class="btn ghost grow" data-act="checkUpdate">Check for updates</button></div></section>`;
+}
+$("#app").addEventListener("change", async e => {
+  const id = e.target.id; if (!id) return;
+  const st = S.settings;
+  if (id.startsWith("s_")) {
+    const k = id.slice(2), el = e.target;
+    if (el.type === "checkbox") st[k] = el.checked;
+    else if (el.type === "number") {
+      const n = Math.round(+el.value), lim = { cycleLen: [15, 90], periodLen: [1, 15], luteal: [8, 18] }[k];
+      if (!(n >= lim[0] && n <= lim[1])) { toast(`Enter ${lim[0]}–${lim[1]}.`); el.value = st[k]; return; }
+      st[k] = n;
+    } else st[k] = el.value;
+    if (k === "secure" && NATIVE) NATIVE.setSecure(st.secure);
+    if (k === "theme") applyTheme();
+  } else if (id.startsWith("r_")) {
+    const k = id.slice(2), el = e.target;
+    st.remind = { ...st.remind, [k]: el.type === "checkbox" ? el.checked : +el.value };
+    if (k === "on" && el.checked || k === "daily" && el.checked || k === "fertile" && el.checked) NATIVE && NATIVE.askNotifications && NATIVE.askNotifications();
+  } else return;
+  await saveDoc("settings", st);
+  pushReminders();
+  toast("Saved");
+});
+ACT.syncNow = () => sync().then(() => S.tab === "me" && render());
+ACT.signOut = () => confirmBox("Sign out of this device?", "Your data stays safe in your account. This device's copy is removed.", "Sign out", signOut);
+async function signOut() {
+  try { await api("/api/logout", { method: "POST", noSignout: true }); } catch {}
+  await idb.wipe(); idCache.clear(); S.auth = null; S.keys = null; S.days = {};
+  if (NATIVE) NATIVE.setReminders("[]");
+  location.replace("/app");
+}
+async function signedOutElsewhere() {
+  await idb.wipe(); idCache.clear(); S.auth = null; S.keys = null; S.days = {};
+  showAuth("signin", "You were signed out (password changed or device removed). Sign in again.");
+}
+async function loadSessions() {
+  try {
+    const r = await api("/api/sessions"), el = $("#sessions"); if (!el) return;
+    el.innerHTML = r.sessions.map(s => `<div class="row between"><span>${esc(s.device)}${s.current ? ' <span class="chip tag">this device</span>' : ""}</span><span class="small muted">active ${esc(new Date(s.lastSeen).toLocaleDateString("en-AU", { day: "numeric", month: "short" }))}</span></div>`).join("");
+  } catch (e) { const el = $("#sessions"); if (el) el.innerHTML = `<div class="small muted">${esc(e.message)}</div>`; }
+}
+ACT.endOthers = async () => { try { await api("/api/sessions/others", { method: "DELETE" }); toast("Other devices signed out."); loadSessions(); } catch (e) { toast(e.message); } };
+ACT.export = el => {
+  const days = Object.keys(S.days).sort();
+  let name, text, mime;
+  if (el.dataset.k === "json") { name = `shark-week-export-${today()}.json`; mime = "application/json"; text = JSON.stringify({ exported: new Date().toISOString(), app: "Shark Week Tracker", settings: S.settings, days: Object.fromEntries(days.map(d => [d, S.days[d]])) }, null, 2); }
+  else {
+    const cols = ["date", "flow", "symptoms", "mood", "pain", "energy", "stress", "sleep", "sleepQ", "temp", "mucus", "ovt", "libido", "ex", "water", "alcohol", "caffeine", "meds", "note"];
+    const q = v => { const s = Array.isArray(v) ? v.join("; ") : v == null ? "" : String(v); return /[",\n]/.test(s) || /^[=+\-@]/.test(s) ? `"${s.replace(/^([=+\-@])/, "'$1").replace(/"/g, '""')}"` : s; };
+    text = cols.join(",") + "\n" + days.map(d => { const v = S.days[d]; return [d, v.flow, v.sym, v.mood, v.pain, v.energy, v.stress, v.sleep, v.sleepQ, v.temp, v.mucus, v.ovt, v.libido, v.ex, v.water, v.alcohol, v.caffeine, v.meds, v.note].map(q).join(","); }).join("\n");
+    name = `shark-week-export-${today()}.csv`; mime = "text/csv";
+  }
+  if (NATIVE) { const r = NATIVE.saveFile(name, text, mime); toast(r || "Saved to Downloads"); return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: mime })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+};
+
+// small modal helpers built into the sheet layer
+function modal(html) {
+  const sh = $("#sheet"); sheetDay = null;
+  sh.innerHTML = `<div class="wrap" style="max-width:480px"><div class="sheethead"><button class="iconbtn" data-act="closeSheet" aria-label="Close">✕</button></div>${html}</div>`;
+  sh.classList.remove("hidden"); document.body.style.overflow = "hidden"; history.pushState({ sheet: 1 }, "");
+  const f = $("input", sh); if (f) f.focus();
+}
+function confirmBox(title, text, okLabel, fn) {
+  modal(`<h2>${esc(title)}</h2><p class="muted">${esc(text)}</p><div class="row"><button class="btn ghost grow" data-act="closeSheet">Cancel</button><button class="btn primary grow" data-act="confirmOk">${esc(okLabel)}</button></div>`);
+  ACT.confirmOk = () => fn();
+}
+function busy(btn, on, label) { if (!btn) return; btn.disabled = on; if (on) { btn._l = btn.textContent; btn.innerHTML = `<span class="spinner" style="width:16px;height:16px;border-width:2px"></span> ${esc(label || "Working…")}`; } else btn.textContent = btn._l || btn.textContent; }
+async function currentKeys(password) {
+  const k = await passwordKeys(password, S.auth.salt, S.auth.iter);
+  const raw = await unwrapRaw(k.wrap, S.auth.wrapped).catch(() => null);
+  if (!raw) throw new ApiError(403, "Your current password isn't right.");
+  return { auth: k.auth, raw };
+}
+ACT.changePw = () => {
+  modal(`<h2>Change password</h2><p class="small muted">Other devices will be signed out.</p>
+    <label class="field"><span>Current password</span><input type="password" id="cp_cur" autocomplete="current-password"></label>
+    <label class="field"><span>New password (10+ characters)</span><input type="password" id="cp_new" autocomplete="new-password"></label>
+    <div class="err" id="cp_err"></div><button class="btn primary block" data-act="doChangePw">Change password</button>`);
+};
+ACT.doChangePw = async btn => {
+  const err = $("#cp_err"); err.textContent = "";
+  const pw = $("#cp_new").value, bad = passwordProblem(pw, S.auth.email); if (bad) return err.textContent = bad;
+  busy(btn, true, "Re-encrypting…");
+  try {
+    const cur = await currentKeys($("#cp_cur").value);
+    const salt = b64(rand(16)), nk = await passwordKeys(pw, salt, PBKDF2_ITER), wrapped = await wrapRaw(nk.wrap, cur.raw); cur.raw.fill(0);
+    await api("/api/password", { method: "POST", body: { current: cur.auth, salt, iter: PBKDF2_ITER, auth: nk.auth, wrapped } });
+    S.auth = { ...S.auth, salt, iter: PBKDF2_ITER, wrapped }; await idb.set("auth", S.auth);
+    history.back(); toast("Password changed.");
+  } catch (e) { err.textContent = e.message; busy(btn, false); }
+};
+ACT.newRec = () => {
+  modal(`<h2>New recovery code</h2><p class="small muted">Your old code will stop working.</p>
+    <label class="field"><span>Password</span><input type="password" id="nr_pw" autocomplete="current-password"></label>
+    <div class="err" id="nr_err"></div><button class="btn primary block" data-act="doNewRec">Make a new code</button>`);
+};
+ACT.doNewRec = async btn => {
+  const err = $("#nr_err"); err.textContent = "";
+  busy(btn, true);
+  try {
+    const cur = await currentKeys($("#nr_pw").value), code = newRecoveryCode(), rk = await recoveryKeys(code, S.auth.email);
+    const wrappedRec = await wrapRaw(rk.wrap, cur.raw); cur.raw.fill(0);
+    await api("/api/recovery", { method: "POST", body: { current: cur.auth, recAuth: rk.auth, wrappedRec } });
+    showRecoveryCode($("#sheet .wrap"), code, () => history.back());
+  } catch (e) { err.textContent = e.message; busy(btn, false); }
+};
+ACT.deleteAcct = () => {
+  modal(`<h2>Delete account</h2><p>This permanently deletes your account and everything you've logged, on every device. It can't be undone.</p>
+    <p class="small muted">Tip: download your data first.</p>
+    <label class="field"><span>Password</span><input type="password" id="da_pw" autocomplete="current-password"></label>
+    <div class="err" id="da_err"></div><button class="btn danger block" data-act="doDelete">Delete everything</button>`);
+};
+ACT.doDelete = async btn => {
+  const err = $("#da_err"); err.textContent = ""; busy(btn, true, "Deleting…");
+  try {
+    const cur = await currentKeys($("#da_pw").value); cur.raw.fill(0);
+    await api("/api/account", { method: "DELETE", body: { current: cur.auth } });
+    await idb.wipe(); if (NATIVE) NATIVE.setReminders("[]");
+    S.auth = null; location.replace("/app?deleted=1");
+  } catch (e) { err.textContent = e.message; busy(btn, false); }
+};
+
+// =============================== reminders (Android app) =================================
+function pushReminders() {
+  if (!NATIVE || !S.auth) return;
+  const r = S.settings.remind, m = model(), out = [], now = Date.now();
+  const at = (day, hour) => { const d = parse(day); d.setHours(hour, 0, 0, 0); return d.getTime(); };
+  const disc = r.discreet;
+  if (m.last && r.on) {
+    let start = m.late > 0 ? null : m.nextStart;
+    for (let n = 0; n < 6 && start; n++, start = addDays(start, m.avgCycle)) {
+      out.push({ at: at(addDays(start, -r.before), r.hour), title: disc ? "Shark Week Tracker" : "Period coming up", text: disc ? "A friendly heads-up from Shark Week 🦈" : `Your period may start in about ${plural(r.before, "day")}.` });
+    }
+  }
+  if (m.last && r.fertile && S.settings.fertile && m.late <= 0) out.push({ at: at(m.fertileStart, r.hour), title: "Shark Week Tracker", text: disc ? "Check in with Shark Week today" : "Your estimated fertile window starts today." });
+  if (r.daily) for (let k = 0; k < 30; k++) out.push({ at: at(addDays(today(), k), Math.max(r.hour, 20)), title: "Shark Week Tracker", text: "How are you feeling today? Tap to log." });
+  NATIVE.setReminders(JSON.stringify(out.filter(x => x.at > now).sort((a, b) => a.at - b.at).slice(0, 60)));
+}
+
+// =============================== update checks ===========================================
+// /version.json is published with every release. The Android app compares its own version code
+// (newer APK -> download link; Android asks before installing); the web app compares this page's
+// build hash (newer deploy -> reload). Checked on start, when the app comes back to the front
+// (at most every 6 hours) and from Me -> About.
+let lastCheck = 0;
+async function checkUpdate(force) {
+  if (!force && Date.now() - lastCheck < 6 * 3600e3) return;
+  lastCheck = Date.now();
+  try {
+    const r = await fetch("/version.json", { cache: "no-store" }).then(x => x.ok ? x.json() : null);
+    if (!r) return;
+    let upd = null;
+    if (NATIVE && NATIVE.versionCode && r.android && +r.android.code > +NATIVE.versionCode()) upd = { kind: "apk", name: r.android.name, url: r.android.url, notes: r.android.notes || "" };
+    else if (!NATIVE && r.web && BUILD.length === 12 && r.web !== BUILD) upd = { kind: "web" };
+    const changed = JSON.stringify(upd) !== JSON.stringify(S.update || null);
+    S.update = upd;
+    if (changed && S.auth) render();
+    if (force) toast(upd ? "An update is available." : "You're on the latest version.");
+  } catch { if (force) toast("Couldn't check for updates. Are you offline?"); }
+}
+function updateBar() {
+  const u = S.update; if (!u) return "";
+  if (u.kind === "apk") return `<div class="updbar" role="status"><span class="grow"><b>Update available</b> — version ${esc(u.name)}.${u.notes ? " " + esc(u.notes) : ""}</span><button class="btn primary" data-act="doUpdate">Update</button></div>`;
+  return `<div class="updbar" role="status"><span class="grow"><b>A new version is ready.</b> Reload to get it — your data is safe.</span><button class="btn primary" data-act="doUpdate">Reload</button></div>`;
+}
+ACT.doUpdate = () => {
+  const u = S.update; if (!u) return;
+  if (u.kind === "apk") { NATIVE.openUrl(new URL(u.url, location.origin).href); toast("Downloading… then tap the file to install. Android may ask you to allow installs from your browser."); }
+  else location.reload();
+};
+ACT.checkUpdate = () => checkUpdate(true);
+
+// =============================== auth screens ============================================
+function passwordProblem(pw, email) {
+  if (pw.length < 10) return "Use at least 10 characters.";
+  if (pw.length > 256) return "Use 256 characters or fewer.";
+  const low = pw.toLowerCase();
+  if (/^(.)\1+$/.test(pw) || ["password", "1234567890", "qwertyuiop", "sharkweek", "iloveyou", "letmein"].some(w => low.includes(w)) || (email && low.includes(email.split("@")[0]) && email.split("@")[0].length > 3))
+    return "That password is too easy to guess. Try three or four random words.";
+  return "";
+}
+function showAuth(mode, msg) {
+  $("#tabs").classList.add("hidden"); $("#sheet").classList.add("hidden"); document.body.style.overflow = "";
+  const brand = `<div class="brand">${LOGO}<div class="name">Shark Week Tracker</div><div class="muted">Private cycle tracking & health insights</div></div>`;
+  let body;
+  if (mode === "welcome") body = `${brand}
+    <div class="card"><div class="tiprow">${icon("lock")}<div><b>Encrypted on your device</b><span class="small muted">Not even we can read what you log. No ads, no data selling, no trackers.</span></div></div>
+    <div class="tiprow">${icon("chart")}<div><b>Cycles, symptoms & charts</b><span class="small muted">See patterns across your cycle and get phase-based tips.</span></div></div>
+    <div class="tiprow">${icon("phone")}<div><b>Any device</b><span class="small muted">Sign in anywhere and your data comes with you.</span></div></div></div>
+    <button class="btn primary block" data-act="goAuth" data-k="signup">Create account</button>
+    <button class="btn ghost block" style="margin-top:10px" data-act="goAuth" data-k="signin">Sign in</button>`;
+  if (mode === "signin") body = `${brand}<form id="f_signin" class="card" novalidate><h2>Sign in</h2>
+    <label class="field"><span>Email</span><input type="email" id="a_email" autocomplete="username" required></label>
+    <label class="field"><span>Password</span><input type="password" id="a_pw" autocomplete="current-password" required></label>
+    <div class="err" id="a_err"></div><button class="btn primary block" type="submit">Sign in</button>
+    <div class="row between" style="margin-top:8px"><button class="link" type="button" data-act="goAuth" data-k="forgot">Forgot password?</button><button class="link" type="button" data-act="goAuth" data-k="signup">Create account</button></div></form>`;
+  if (mode === "signup") body = `${brand}<form id="f_signup" class="card" novalidate><h2>Create your account</h2>
+    <label class="field"><span>Email</span><input type="email" id="a_email" autocomplete="username" required></label>
+    <label class="field"><span>Password (10+ characters)</span><input type="password" id="a_pw" autocomplete="new-password" required></label>
+    <label class="field"><span>Confirm password</span><input type="password" id="a_pw2" autocomplete="new-password" required></label>
+    <div class="note" style="margin-bottom:12px">Your password is the key to your encrypted data. If you forget it, only your recovery code (shown next) can get your data back.</div>
+    <label class="check"><input type="checkbox" id="c_age"><span>I'm 16 or older.</span></label>
+    <label class="check"><input type="checkbox" id="c_terms"><span>I agree to the <a href="/terms" target="_blank">Terms of Use</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</span></label>
+    <label class="check"><input type="checkbox" id="c_health"><span>I consent to Shark Week Tracker storing the health information I choose to log (encrypted) so I can use it on my devices. I can withdraw by deleting my account.</span></label>
+    <div class="err" id="a_err"></div><button class="btn primary block" type="submit">Create account</button>
+    <button class="link" type="button" data-act="goAuth" data-k="signin" style="margin-top:8px">I already have an account</button></form>`;
+  if (mode === "forgot") body = `${brand}<form id="f_forgot" class="card" novalidate><h2>Reset your password</h2>
+    <p class="small muted">Because your data is encrypted with your password, you need the recovery code you saved when you signed up.</p>
+    <label class="field"><span>Email</span><input type="email" id="a_email" autocomplete="username" required></label>
+    <label class="field"><span>Recovery code</span><input type="text" id="a_code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"></label>
+    <label class="field"><span>New password (10+ characters)</span><input type="password" id="a_pw" autocomplete="new-password"></label>
+    <div class="err" id="a_err"></div><button class="btn primary block" type="submit">Reset password</button>
+    <button class="link" type="button" data-act="goAuth" data-k="signin" style="margin-top:8px">Back to sign in</button>
+    <p class="small muted" style="margin-top:10px">Lost both? You can't recover the data (that's what keeps it private) — but you can delete the old account by emailing us and start again.</p></form>`;
+  $("#app").innerHTML = `<main class="auth">${msg ? `<div class="note" style="margin-bottom:12px">${esc(msg)}</div>` : ""}${body}
+    <p class="small muted center" style="margin-top:20px"><a href="/">About Shark Week</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p></main>`;
+  const f = $("form"); if (f) { f.addEventListener("submit", e => { e.preventDefault(); AUTH[mode](f); }); }
+}
+ACT.goAuth = el => showAuth(el.dataset.k);
+const AUTH = {
+  async signin(f) {
+    const err = $("#a_err"), btn = $("button[type=submit]", f); err.textContent = "";
+    const email = normEmail($("#a_email").value), pw = $("#a_pw").value;
+    if (!email || !pw) return err.textContent = "Enter your email and password.";
+    busy(btn, true, "Unlocking…");
+    try {
+      const pre = await api("/api/prelogin", { method: "POST", body: { email } });
+      const k = await passwordKeys(pw, pre.salt, pre.iter);
+      const r = await api("/api/login", { method: "POST", body: { email, auth: k.auth } });
+      const raw = await unwrapRaw(k.wrap, r.wrapped);
+      await startSession({ token: r.token, email, salt: pre.salt, iter: pre.iter, wrapped: r.wrapped }, raw);
+    } catch (e) { err.textContent = e.message; busy(btn, false); }
+  },
+  async signup(f) {
+    const err = $("#a_err"), btn = $("button[type=submit]", f); err.textContent = "";
+    const email = normEmail($("#a_email").value), pw = $("#a_pw").value;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return err.textContent = "Enter a valid email address.";
+    const bad = passwordProblem(pw, email); if (bad) return err.textContent = bad;
+    if (pw !== $("#a_pw2").value) return err.textContent = "The passwords don't match.";
+    if (!$("#c_age").checked) return err.textContent = "You need to be 16 or older to create an account.";
+    if (!$("#c_terms").checked || !$("#c_health").checked) return err.textContent = "Please tick both boxes to continue.";
+    busy(btn, true, "Creating your encryption keys…");
+    try {
+      const raw = rand(64), salt = b64(rand(16)), k = await passwordKeys(pw, salt, PBKDF2_ITER), wrapped = await wrapRaw(k.wrap, raw);
+      const code = newRecoveryCode(), rk = await recoveryKeys(code, email), wrappedRec = await wrapRaw(rk.wrap, raw);
+      const r = await api("/api/signup", { method: "POST", body: { email, salt, iter: PBKDF2_ITER, auth: k.auth, wrapped, recAuth: rk.auth, wrappedRec, acceptTerms: true, healthConsent: true, age16: true } });
+      showRecoveryCode($("#app main"), code, async () => { await startSession({ token: r.token, email, salt, iter: PBKDF2_ITER, wrapped }, raw); }, "", email);
+    } catch (e) { err.textContent = e.message; busy(btn, false); }
+  },
+  async forgot(f) {
+    const err = $("#a_err"), btn = $("button[type=submit]", f); err.textContent = "";
+    const email = normEmail($("#a_email").value), code = $("#a_code").value, pw = $("#a_pw").value;
+    if (normCode(code).length !== 25) return err.textContent = "Recovery codes are 25 letters and numbers.";
+    const bad = passwordProblem(pw, email); if (bad) return err.textContent = bad;
+    busy(btn, true, "Checking…");
+    try {
+      const rk = await recoveryKeys(code, email);
+      const r1 = await api("/api/recover/key", { method: "POST", body: { email, recAuth: rk.auth } });
+      const raw = await unwrapRaw(rk.wrap, r1.wrappedRec);
+      const salt = b64(rand(16)), k = await passwordKeys(pw, salt, PBKDF2_ITER), wrapped = await wrapRaw(k.wrap, raw);
+      const next = newRecoveryCode(), nrk = await recoveryKeys(next, email), wrappedRec = await wrapRaw(nrk.wrap, raw);
+      const r = await api("/api/recover/reset", { method: "POST", body: { email, recAuth: rk.auth, salt, iter: PBKDF2_ITER, auth: k.auth, wrapped, next: { recAuth: nrk.auth, wrappedRec } } });
+      showRecoveryCode($("#app main"), next, async () => { await startSession({ token: r.token, email, salt, iter: PBKDF2_ITER, wrapped }, raw); }, "Password reset. Here's your NEW recovery code — the old one no longer works.", email);
+    } catch (e) { err.textContent = e.message; busy(btn, false); }
+  },
+};
+function showRecoveryCode(el, code, done, lead, email = S.auth && S.auth.email) {
+  el.innerHTML = `<div class="card"><h2>Save your recovery code</h2>
+    <p>${esc(lead || "If you forget your password, this code is the only way to get your data back. We can't reset it for you — we never see your data.")}</p>
+    <div class="code" id="rc">${esc(code)}</div>
+    <div class="row" style="margin:10px 0"><button class="btn ghost grow" data-act="copyCode">Copy</button><button class="btn ghost grow" data-act="saveCode">Download</button></div>
+    <p class="small muted">Keep it in a password manager or somewhere safe. Don't share it.</p>
+    <label class="check"><input type="checkbox" id="rc_ok"><span>I've saved my recovery code.</span></label>
+    <button class="btn primary block" data-act="codeDone" disabled id="rc_btn">Continue</button></div>`;
+  $("#rc_ok").addEventListener("change", e => { $("#rc_btn").disabled = !e.target.checked; });
+  ACT.copyCode = () => navigator.clipboard.writeText(code).then(() => toast("Copied"), () => toast("Select the code and copy it."));
+  ACT.saveCode = () => { const t = `Shark Week Tracker recovery code\nAccount: ${email || ""}\n\n${code}\n\nKeep this safe. It unlocks your data if you forget your password.\n`; if (NATIVE) toast(NATIVE.saveFile("shark-week-recovery-code.txt", t, "text/plain") || "Saved to Downloads"); else { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([t], { type: "text/plain" })); a.download = "shark-week-recovery-code.txt"; a.click(); } };
+  ACT.codeDone = async b => { busy(b, true); await done(); };
+}
+async function startSession(authInfo, raw) {
+  await idb.wipe();
+  S.keys = await importDataKeys(raw);
+  S.auth = authInfo;
+  await idb.set("auth", authInfo); await idb.set("keys", S.keys);
+  idCache.clear();
+  await loadLocal();
+  $("#app").innerHTML = `<div class="auth center"><span class="spinner"></span><p class="muted">Fetching and decrypting your data…</p></div>`;
+  await sync();
+  if (NATIVE) NATIVE.setSecure(S.settings.secure);
+  S.tab = "today"; render(); pushReminders();
+  checkConsent(); checkUpdate();
+}
+async function checkConsent() {
+  try {
+    const me = await api("/api/me");
+    if (!me.consentCurrent) {
+      modal(`<h2>We've updated our terms</h2><p>Please review the updated <a href="/privacy" target="_blank">Privacy Policy</a> and <a href="/terms" target="_blank">Terms of Use</a>.</p>
+        <label class="check"><input type="checkbox" id="cc_ok"><span>I agree, and I consent to my (encrypted) health information being stored as described.</span></label>
+        <div class="row"><button class="btn ghost grow" data-act="signOut">Sign out</button><button class="btn primary grow" data-act="consentOk">Continue</button></div>`);
+      ACT.consentOk = async () => { if (!$("#cc_ok").checked) return toast("Tick the box to continue, or sign out."); await api("/api/consent", { method: "POST" }); history.back(); };
+    }
+  } catch {}
+}
+
+// =============================== start ===================================================
+async function boot() {
+  if ("serviceWorker" in navigator && !NATIVE && location.protocol === "https:") navigator.serviceWorker.register("/sw.js").catch(() => {});
+  const params = new URLSearchParams(location.search);
+  try {
+    S.auth = await idb.get("auth"); S.keys = await idb.get("keys");
+  } catch { S.auth = null; }
+  if (!S.auth || !S.keys) { S.auth = null; return showAuth("welcome", params.has("deleted") ? "Your account and data have been deleted." : ""); }
+  await loadLocal();
+  if (NATIVE) NATIVE.setSecure(S.settings.secure);
+  render();
+  sync().then(() => { pushReminders(); checkConsent(); checkUpdate(); });
+  setInterval(() => document.visibilityState === "visible" && sync(), 5 * 60e3);
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && S.auth) { sync(); checkUpdate(); if (S.tab === "today") render(); } });
+addEventListener("online", () => S.auth && sync());
+window.swResume = () => S.auth && sync();
+boot();
+</script>
+</body>
+</html>

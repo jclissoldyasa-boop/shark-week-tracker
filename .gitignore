@@ -1,0 +1,14 @@
+node_modules/
+server/.dev.vars
+server/.wrangler/
+server/public/
+android/assets/
+android/build/
+android/gen/
+android/*.apk
+android/release.json
+android/*.idsig
+# The signing key: back it up somewhere safe, never commit it.
+android/*.keystore
+server/.env
+server/.cf-home/

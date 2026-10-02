@@ -1,0 +1,12 @@
+<resources>
+  <color name="bg">#07162A</color>
+  <color name="icon_bg">#0E2340</color>
+  <string name="app_name">Shark Week</string>
+  <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
+    <item name="android:windowBackground">@color/bg</item>
+    <item name="android:colorBackground">@color/bg</item>
+    <item name="android:statusBarColor">@color/bg</item>
+    <item name="android:navigationBarColor">@color/bg</item>
+    <item name="android:colorAccent">#E8506E</item>
+  </style>
+</resources>

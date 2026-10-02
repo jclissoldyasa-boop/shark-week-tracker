@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{NAME}} · Private period & cycle tracker</title>
+<meta name="description" content="Track your period, symptoms, energy and sleep across your cycle. Charts, patterns and phase-by-phase health tips. End-to-end encrypted, no ads, no tracking. Free for Android and the web.">
+<meta name="theme-color" content="#07162A">
+<meta name="referrer" content="no-referrer">
+<meta property="og:title" content="{{NAME}}: know your cycle, keep it private">
+<meta property="og:description" content="Charts, symptom patterns and health tips for every phase. Encrypted on your phone. Free for Android and the web.">
+<meta property="og:image" content="https://{{HOST}}/icon-512.png">
+<meta property="og:url" content="https://{{HOST}}/">
+<meta property="og:type" content="website">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<style>
+:root {
+  --bg: #F3F7FB; --bg2: #E8EFF7; --surface: #FFFFFF; --line: #D5DFEA;
+  --text: #0B1B33; --muted: #4F6380; --accent: #D93B57; --accent-ink: #fff;
+  --period: #E0445F; --foll: #3E7FD1; --fert: #14998A; --lut: #C08A1E;
+  --hero: #07162A; --hero-text: #EAF2FF; --hero-muted: #A3B6D3;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #07162A; --bg2: #0B1D36; --surface: #0E2340; --line: #21406B;
+    --text: #EAF2FF; --muted: #A3B6D3; --accent: #E8506E;
+    --period: #E8506E; --foll: #5B86E8; --fert: #17A08C; --lut: #B8841C;
+    --hero: #040E1C; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #07162A; --bg2: #0B1D36; --surface: #0E2340; --line: #21406B;
+  --text: #EAF2FF; --muted: #A3B6D3; --accent: #E8506E;
+  --period: #E8506E; --foll: #5B86E8; --fert: #17A08C; --lut: #B8841C;
+  --hero: #040E1C; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+a { color: var(--accent); }
+h1, h2, h3 { line-height: 1.15; margin: 0 0 .6rem; letter-spacing: -.01em; }
+p { margin: 0 0 1rem; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 22px; border-radius: 14px; font-weight: 700; text-decoration: none; min-height: 52px; border: 2px solid transparent; }
+.btn svg { width: 22px; height: 22px; flex: none; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.ghost { border-color: rgba(234,242,255,.35); color: var(--hero-text); }
+.btn.outline { border-color: var(--line); color: var(--text); background: var(--surface); }
+.btn:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.skip { position: absolute; left: -999px; top: 8px; background: var(--surface); padding: 8px 12px; border-radius: 8px; z-index: 10; }
+.skip:focus { left: 8px; }
+
+/* header + hero */
+.hero { background: var(--hero); color: var(--hero-text); overflow: hidden; position: relative; }
+.hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 60px; background: var(--bg);
+  clip-path: path("M0 30 C 160 0, 320 60, 480 30 S 800 0, 960 30 S 1280 60, 1440 30 S 1760 0, 1920 30 S 2240 60, 2400 30 L 2400 60 L 0 60 Z"); }
+header.nav { display: flex; align-items: center; gap: 12px; padding: 16px 0; }
+header.nav .name { font-weight: 800; font-size: 1.1rem; color: var(--hero-text); text-decoration: none; display: flex; align-items: center; gap: 10px; }
+header.nav .name svg { width: 36px; height: 36px; }
+header.nav nav { margin-left: auto; display: flex; gap: 18px; align-items: center; }
+header.nav nav a { color: var(--hero-muted); text-decoration: none; font-size: .95rem; }
+header.nav nav a.open { color: var(--hero-text); border: 1px solid rgba(234,242,255,.35); padding: 8px 14px; border-radius: 10px; }
+@media (max-width: 720px) { header.nav nav a:not(.open) { display: none; } }
+.herogrid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 40px; align-items: center; padding: 40px 0 100px; }
+@media (max-width: 860px) { .herogrid { grid-template-columns: 1fr; padding-top: 16px; } }
+.hero h1 { font-size: clamp(2.2rem, 5.5vw, 3.6rem); }
+.hero h1 em { font-style: normal; color: #FF7A93; }
+.hero .lead { font-size: 1.15rem; color: var(--hero-muted); max-width: 34em; }
+.ctas { display: flex; gap: 12px; flex-wrap: wrap; margin: 26px 0 16px; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--hero-muted); font-size: .92rem; padding: 0; margin: 0; list-style: none; }
+.pills li::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #17A08C; margin-right: 8px; vertical-align: middle; }
+.phone { width: min(300px, 78vw); margin: 0 auto; border-radius: 42px; padding: 12px; background: #1B2B45; box-shadow: 0 30px 80px rgba(0,0,0,.45), inset 0 0 0 2px #2C4266; }
+.phone img { display: block; width: 100%; height: auto; border-radius: 32px; aspect-ratio: 390 / 720; object-fit: cover; object-position: top; }
+
+/* sections */
+section { padding: 64px 0; }
+section.alt { background: var(--bg2); }
+.kicker { color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; font-size: .8rem; margin-bottom: .5rem; }
+h2 { font-size: clamp(1.7rem, 3.6vw, 2.4rem); max-width: 22em; }
+.sub { color: var(--muted); max-width: 40em; font-size: 1.05rem; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 30px; }
+@media (max-width: 860px) { .grid3 { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .grid3 { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 22px; }
+.card h3 { font-size: 1.1rem; display: flex; align-items: center; gap: 10px; }
+.card p { color: var(--muted); margin: 0; font-size: .97rem; }
+.dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 30px; }
+@media (max-width: 760px) { .shots { grid-template-columns: 1fr; max-width: 320px; margin-left: auto; margin-right: auto; } }
+figure { margin: 0; }
+figure .phone { width: 100%; padding: 9px; border-radius: 34px; box-shadow: 0 16px 40px rgba(7,22,42,.25); }
+figure .phone img { border-radius: 26px; }
+figcaption { text-align: center; color: var(--muted); font-size: .95rem; margin-top: 12px; }
+figcaption b { color: var(--text); display: block; }
+.privacy { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; align-items: start; }
+@media (max-width: 860px) { .privacy { grid-template-columns: 1fr; } }
+.checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+.checks li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; }
+.checks svg { width: 24px; height: 24px; color: var(--fert); margin-top: 2px; }
+.checks b { display: block; }
+.checks span { color: var(--muted); font-size: .97rem; }
+.lock { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 22px; font-size: .95rem; }
+.flow { display: grid; gap: 10px; margin: 14px 0 0; }
+.flow > div { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: start; }
+.flow .n { width: 34px; height: 34px; border-radius: 50%; background: var(--bg2); display: grid; place-items: center; font-weight: 800; }
+.flow p { margin: 4px 0 0; color: var(--muted); }
+.dl { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 30px; }
+@media (max-width: 760px) { .dl { grid-template-columns: 1fr; } }
+.dl .card { display: flex; flex-direction: column; gap: 12px; }
+.dl ol { margin: 0; padding-left: 20px; color: var(--muted); font-size: .97rem; }
+.dl ol li { margin-bottom: 6px; }
+.dl .btn { align-self: flex-start; }
+.small { font-size: .88rem; color: var(--muted); }
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 0 18px; margin-bottom: 10px; }
+summary { cursor: pointer; font-weight: 700; padding: 16px 0; list-style-position: outside; }
+details p { color: var(--muted); margin: 0 0 16px; }
+footer { padding: 40px 0 56px; color: var(--muted); font-size: .92rem; border-top: 1px solid var(--line); }
+footer .links { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 14px; }
+footer a { color: var(--text); }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="hero">
+  <div class="wrap">
+    <header class="nav">
+      <a class="name" href="/"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0E2340"/><path d="M14.75 42.5C24.5 37.5 32.75 26.25 42.75 13C39.75 23.75 39.75 35 49 42.5z" fill="#E8506E"/><path d="M8 45.25c4 0 6-3 10-3s6 3 10 3 6-3 10-3 6 3 10 3 6-3 8-3" fill="none" stroke="#5B86E8" stroke-width="3.5" stroke-linecap="round"/></svg>{{NAME}}</a>
+      <nav aria-label="Page"><a href="#features">Features</a><a href="#privacy">Privacy</a><a href="#download">Download</a><a class="open" href="/app">Open app</a></nav>
+    </header>
+    <div class="herogrid">
+      <div>
+        <h1>Know your cycle.<br><em>Keep it private.</em></h1>
+        <p class="lead">Track your period, symptoms, energy and sleep, and see how they move through your cycle. Get tips for each phase. Everything is encrypted on your phone before it goes anywhere.</p>
+        <div class="ctas">
+          <a class="btn primary" href="/download/SharkWeek.apk" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg>Download for Android</a>
+          <a class="btn ghost" href="/app">Use it on the web</a>
+        </div>
+        <ul class="pills"><li>Free</li><li>No ads or tracking</li><li>End-to-end encrypted</li><li>Made in Australia</li></ul>
+      </div>
+      <div class="phone"><img src="/img/today.webp" width="390" height="720" alt="The Today screen: a cycle ring showing day 27, luteal phase, period in 3 days, with today's logged symptoms."></div>
+    </div>
+  </div>
+</div>
+
+<main id="main">
+<section id="features">
+  <div class="wrap">
+    <div class="kicker">Cycle tracking, not just fertility</div>
+    <h2>See what your cycle is doing to your energy, mood and body</h2>
+    <p class="sub">Shark Week Tracker is built for understanding your health across the whole month, not just predicting a due date.</p>
+    <div class="grid3">
+      <div class="card"><h3><span class="dot" style="background:var(--period)"></span>Predictions that learn</h3><p>Your next period, phase and estimated fertile window from your own cycle history, with late-period alerts.</p></div>
+      <div class="card"><h3><span class="dot" style="background:var(--foll)"></span>Log in seconds</h3><p>Flow, 20 symptoms, pain, mood, energy, stress, sleep, temperature, cervical mucus, exercise, water, caffeine, medicines and notes.</p></div>
+      <div class="card"><h3><span class="dot" style="background:var(--fert)"></span>Patterns you can use</h3><p>A symptom map shows when headaches, bloating or cravings tend to hit, with plain-English notes like "mostly in the 5 days before your period".</p></div>
+      <div class="card"><h3><span class="dot" style="background:var(--lut)"></span>Tips for every phase</h3><p>Training, food and sleep ideas for your period, follicular, ovulation and luteal phases, so you can plan around how you'll feel.</p></div>
+      <div class="card"><h3><span class="dot" style="background:var(--period)"></span>Temperature charts</h3><p>Log your morning temperature and the app spots the rise that shows ovulation has happened.</p></div>
+      <div class="card"><h3><span class="dot" style="background:var(--foll)"></span>Ready for your GP</h3><p>Gentle flags for things worth checking (very long cycles, heavy or painful periods) and a printable summary to take to your appointment.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" aria-labelledby="look">
+  <div class="wrap">
+    <div class="kicker">Take a look</div>
+    <h2 id="look">Clear, calm and quick to use</h2>
+    <div class="shots">
+      <figure><div class="phone"><img src="/img/calendar.webp" width="390" height="720" loading="lazy" alt="Calendar with logged period days, predicted period and fertile window."></div><figcaption><b>Calendar</b>Logged and predicted periods at a glance.</figcaption></figure>
+      <figure><div class="phone"><img src="/img/insights.webp" width="390" height="720" loading="lazy" alt="Insights screen with cycle averages and pattern notes."></div><figcaption><b>Insights</b>Averages, patterns and charts from your logs.</figcaption></figure>
+      <figure><div class="phone"><img src="/img/log.webp" width="390" height="720" loading="lazy" alt="Daily log with flow, symptoms and pain slider."></div><figcaption><b>Daily log</b>Tap what applies. It saves as you go.</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="privacy">
+  <div class="wrap privacy">
+    <div>
+      <div class="kicker">Privacy by design</div>
+      <h2>Built so we can't read your data</h2>
+      <p class="sub">Period data is some of the most personal information there is. So we designed the app so it never reaches us in a form anyone can read.</p>
+      <ul class="checks">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg><div><b>End-to-end encrypted</b><span>Everything you log is locked on your device with AES-256 before syncing. Even the dates you logged are hidden.</span></div></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg><div><b>No ads, trackers or data selling</b><span>No analytics, no third-party scripts, no advertising IDs. We only ask for your email.</span></div></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg><div><b>Australian privacy law</b><span>Handled under the Privacy Act and Australian Privacy Principles, with the database stored in the Oceania region.</span></div></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg><div><b>You're in control</b><span>Download everything as a file, sign out other devices, or delete your account and all data instantly.</span></div></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg><div><b>Open source</b><span>Check how it works yourself on <a href="https://github.com/{{REPO}}" rel="noopener noreferrer">GitHub</a>.</span></div></li>
+      </ul>
+    </div>
+    <div class="lock">
+      <h3>How your data stays private</h3>
+      <div class="flow">
+        <div><span class="n">1</span><div><b>Your password makes the key</b><p>Your phone turns your password into an encryption key. The password itself never leaves your device.</p></div></div>
+        <div><span class="n">2</span><div><b>Your logs are locked on your phone</b><p>Each day is encrypted before it's saved or synced.</p></div></div>
+        <div><span class="n">3</span><div><b>We store only scrambled data</b><p>Our server can't read it, and neither could anyone who broke in.</p></div></div>
+        <div><span class="n">4</span><div><b>Sign in anywhere, it unlocks again</b><p>On a new phone or computer, your password unlocks your data on that device.</p></div></div>
+      </div>
+      <p class="small" style="margin:14px 0 0">The trade-off: if you forget your password <i>and</i> lose your recovery code, nobody can unlock your data, including us.</p>
+    </div>
+  </div>
+</section>
+
+<section id="download" class="alt">
+  <div class="wrap">
+    <div class="kicker">Get it free</div>
+    <h2>Start tracking in a minute</h2>
+    <p class="sub">One account works everywhere. Log on your phone, check charts on your laptop.</p>
+    <div class="dl">
+      <div class="card">
+        <h3>Android app</h3>
+        <a class="btn primary" href="/download/SharkWeek.apk" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg>Download APK</a>
+        <ol>
+          <li>Tap <b>Download APK</b> on your Android phone (Android 10 or newer).</li>
+          <li>Open the downloaded file. If Android asks, allow your browser to install apps.</li>
+          <li>Open Shark Week, create an account and save your recovery code.</li>
+        </ol>
+        <p class="small" style="margin:0">The app checks for updates and offers new versions automatically. Includes period reminders and a privacy screen. All releases are also on <a href="https://github.com/{{REPO}}/releases" rel="noopener noreferrer">GitHub</a>.</p>
+      </div>
+      <div class="card">
+        <h3>iPhone, iPad & computers</h3>
+        <a class="btn outline" href="/app">Open the web app</a>
+        <ol>
+          <li>Open the web app in Safari (iPhone) or any browser.</li>
+          <li>On iPhone, tap <b>Share</b> then <b>Add to Home Screen</b> to use it like an app.</li>
+          <li>Sign in with the same account as your other devices.</li>
+        </ol>
+        <p class="small" style="margin:0">Works offline once opened. Updates arrive automatically.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="faq">
+  <div class="wrap">
+    <div class="kicker">Questions</div>
+    <h2 id="faq">Good to know</h2>
+    <details><summary>Is it really free?</summary><p>Yes. No subscription, no ads and no selling data. It's a small independent Australian project.</p></details>
+    <details><summary>Can I use it as contraception?</summary><p>No. Fertile window and ovulation dates are estimates based on averages and can be wrong. Shark Week Tracker is a wellbeing tool, not a medical device or contraceptive.</p></details>
+    <details><summary>What happens if I forget my password?</summary><p>Use the recovery code you saved when you signed up to set a new password. Because your data is encrypted with your password, we can't reset it for you without that code.</p></details>
+    <details><summary>Why isn't it on Google Play?</summary><p>Not yet. For now you install it directly from this site. It's signed with the same key every release, and Android checks that each update comes from us.</p></details>
+    <details><summary>Where is my data stored?</summary><p>Encrypted on your device, and as encrypted data in a Cloudflare database set to the Oceania region. Read the <a href="/privacy">Privacy Policy</a> for the details.</p></details>
+    <details><summary>I'm worried about my symptoms. What should I do?</summary><p>Talk to your GP, or call healthdirect on <a href="tel:1800022222">1800 022 222</a> (24/7). In an emergency call 000. The app flags patterns worth mentioning to a doctor, but it can't diagnose anything.</p></details>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="links"><a href="/app">Open the app</a><a href="/download/SharkWeek.apk">Android APK</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Use</a><a href="https://github.com/{{REPO}}" rel="noopener noreferrer">GitHub</a><a href="mailto:{{CONTACT}}">Contact</a></div>
+    <p>{{NAME}} provides general wellbeing information only. It is not medical advice, not a contraceptive and not a medical device. © {{OPERATOR}}, {{STATE}}, Australia.</p>
+  </div>
+</footer>
+</body>
+</html>
