@@ -43,7 +43,7 @@ public class MainActivity extends Activity {
         // Privacy screen on by default (until the page says otherwise): no screenshots, blank in recent apps.
         setSecure(getSharedPreferences("sw", MODE_PRIVATE).getBoolean("secure", true));
         web = new WebView(this);
-        web.setBackgroundColor(0xFF07162A);
+        web.setBackgroundColor(getColor(R.color.bg));
         setContentView(web);
 
         WebSettings s = web.getSettings();

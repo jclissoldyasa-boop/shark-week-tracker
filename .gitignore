@@ -12,3 +12,5 @@ android/*.idsig
 android/*.keystore
 server/.env
 server/.cf-home/
+# Icon/logo source pack (assets already copied into web/ and android/res/)
+shark-week-icons.zip

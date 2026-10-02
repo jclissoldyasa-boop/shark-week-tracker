@@ -6,35 +6,46 @@
 <title>Shark Week Forecast</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
-<meta name="theme-color" content="#07162A">
-<link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#FBF6EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1E1716" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
 :root {
-  --bg: #07162A; --surface: #0E2340; --surface2: #15305A; --line: #21406B;
-  --text: #EAF2FF; --muted: #A3B6D3; --accent: #FF6B86;
-  --calm: #2BD9C5; --watch: #FFC857; --warn: #FF9F43; --shark: #FF4D6D;
-  color-scheme: dark;
+  --bg: #FBF6EF; --surface: #FFFFFF; --surface2: #F7EADF; --line: #EEDDD0;
+  --text: #3A2F2D; --muted: #6E615C; --accent: #B5302F; --level-ink: #2A1110;
+  --calm: #7FD1C4; --watch: #F6D57A; --warn: #F8B48C; --shark: #F28B82;
+  --glow: radial-gradient(circle at 20% -10%, rgba(248,180,140,.6) 0, transparent 50%), radial-gradient(circle at 110% 25%, rgba(242,139,130,.35) 0, transparent 40%);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1E1716; --surface: #2A201E; --surface2: #382B28; --line: #4A3A36;
+    --text: #FBF1EA; --muted: #CDB9AE; --accent: #F28B82;
+    --glow: radial-gradient(circle at 20% -10%, rgba(181,48,47,.4) 0, transparent 50%), radial-gradient(circle at 110% 25%, rgba(242,139,130,.15) 0, transparent 40%);
+    color-scheme: dark;
+  }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; min-height: 100vh;
-  background-image: radial-gradient(circle at 20% -10%, #15305A 0, transparent 50%), radial-gradient(circle at 110% 30%, #0f2a4d 0, transparent 40%); }
+  background-image: var(--glow); background-repeat: no-repeat; }
 main { max-width: 560px; margin: 0 auto; padding: 20px 16px 48px; }
 h1, h2, h3 { line-height: 1.2; margin: 0 0 .5rem; }
 p { margin: 0 0 .8rem; }
 a { color: var(--accent); }
 .top { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
-.top svg { width: 40px; height: 40px; flex: none; }
+.top img { width: 44px; height: auto; flex: none; }
 .top .t { font-weight: 800; font-size: 1.15rem; }
 .top .s { color: var(--muted); font-size: .85rem; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 18px; margin-bottom: 14px; }
 .status { text-align: center; padding: 26px 18px; position: relative; overflow: hidden; border-width: 2px; }
-.status .level { display: inline-block; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: .8rem; padding: 6px 12px; border-radius: 999px; color: #07162A; }
+.status .level { display: inline-block; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: .8rem; padding: 6px 12px; border-radius: 999px; color: var(--level-ink); }
 .status .big { font-size: clamp(3.4rem, 18vw, 5.2rem); font-weight: 900; line-height: 1; margin: 16px 0 4px; }
 .status .unit { color: var(--muted); font-weight: 700; }
 .status h2 { font-size: 1.5rem; margin: 12px 0 6px; }
 .status p { color: var(--muted); margin: 0; }
-.fin { position: absolute; bottom: -6px; right: -10px; width: 120px; opacity: .12; }
+.fin { position: absolute; bottom: -6px; right: -10px; width: 120px; opacity: .1; color: var(--accent); }
 .meter { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 18px 0 6px; }
 .meter i { height: 8px; border-radius: 4px; background: var(--surface2); }
 .meter-l { display: flex; justify-content: space-between; color: var(--muted); font-size: .72rem; }
@@ -63,7 +74,7 @@ ol.rules li { margin-bottom: 8px; }
 "use strict";
 // Shark Week Forecast for partners. The link is /partner#ID.KEY; KEY never leaves this browser
 // (fragments aren't sent to servers). The forecast is decrypted here with it.
-const FIN = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0E2340"/><path d="M14.75 42.5C24.5 37.5 32.75 26.25 42.75 13C39.75 23.75 39.75 35 49 42.5z" fill="#E8506E"/><path d="M8 45.25c4 0 6-3 10-3s6 3 10 3 6-3 10-3 6 3 10 3 6-3 8-3" fill="none" stroke="#5B86E8" stroke-width="3.5" stroke-linecap="round"/></svg>';
+const FIN = '<img src="/logo-mark.png" width="44" height="45" alt="">';
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const unb64 = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
@@ -123,7 +134,7 @@ function render(f) {
     <span class="level" style="background:${lv.color}">${esc(lv.label)}</span>
     <div class="big">${esc(lv.big)}</div><div class="unit">${esc(lv.unit)}</div>
     <h2>${esc(lv.head)}</h2><p>${esc(lv.sub)}</p>${meter}
-    <svg class="fin" viewBox="0 0 64 64" aria-hidden="true"><path d="M14.75 42.5C24.5 37.5 32.75 26.25 42.75 13C39.75 23.75 39.75 35 49 42.5z" fill="#fff"/></svg>
+    <svg class="fin" viewBox="0 0 64 64" aria-hidden="true"><path d="M14.75 42.5C24.5 37.5 32.75 26.25 42.75 13C39.75 23.75 39.75 35 49 42.5z" fill="currentColor"/></svg>
   </section>` : `<section class="card status"><h2>No forecast yet</h2><p>${who} hasn't logged a period yet. Check back soon.</p></section>`}
   ${likely.length ? `<section class="card"><h2>What's likely on the radar</h2><p class="muted small">From ${who}'s own logs over recent cycles.</p>
     ${likely.map(x => `<div class="sym"><b>${esc(x.label)}</b><span class="pct">${x.pct}% of cycles · ${x.when === "before" ? "the days before" : "during"}</span>
