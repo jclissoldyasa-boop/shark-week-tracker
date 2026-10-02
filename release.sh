@@ -10,7 +10,7 @@ RELEASE_NOTES="$NOTES" ./android/build.sh
 NAME=$(node -e 'console.log(require("./android/release.json").name)')
 (cd server && npm run deploy)
 git add -A
-git commit -q -m "Release $NAME: $NOTES" || true
+git commit -q -m "Release $NAME: $NOTES" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" || true
 git push -q origin HEAD
 gh release create "v$NAME" android/SharkWeek.apk --title "Shark Week Tracker $NAME" --notes "$NOTES
 

@@ -23,7 +23,7 @@ const BUILD = crypto.createHash("sha256").update(app).digest("hex").slice(0, 12)
 app = app.replace('"__BUILD__"', JSON.stringify(BUILD));
 const legal = { "privacy.html": fill(read("legal/privacy.html")), "terms.html": fill(read("legal/terms.html")) };
 const landing = fill(read("landing.html"));
-const webPages = { "index.html": landing, "app.html": app, ...legal };   // site: landing at /, app at /app
+const webPages = { "index.html": landing, "app.html": app, "partner.html": read("partner.html"), ...legal }; // site: landing at /, app at /app, partner forecast at /partner
 const apkPages = { "index.html": app, ...legal };                         // APK: the bundled app
 
 const hashes = new Set();

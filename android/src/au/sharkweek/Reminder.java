@@ -13,8 +13,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * Reminders worked out by the page (period coming up, fertile window, daily log), as a list of
- * {"at", "title", "text"}. One alarm is set for the earliest; when it fires it shows every due
+ * Reminders worked out by the page (period coming up, fertile window, daily log, partner heads-up), as a
+ * list of {"at", "title", "text", "act"?}. One alarm is set for the earliest; when it fires it shows every due
  * reminder and sets the next. The texts are already discreet if the person chose that.
  */
 public class Reminder extends BroadcastReceiver {
@@ -44,7 +44,10 @@ public class Reminder extends BroadcastReceiver {
             long at = r.optLong("at");
             if (at > now + 60_000) { keep.put(r); continue; }
             if (now - at > 6 * 3600_000L) continue; // missed by hours (phone was off): skip rather than nag late
-            PendingIntent open = PendingIntent.getActivity(c, 0, new Intent(c, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE);
+            Intent openApp = new Intent(c, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            String act = r.optString("act", "");
+            if (!act.isEmpty()) openApp.putExtra("act", act); // e.g. "partner": opens the heads-up to send
+            PendingIntent open = PendingIntent.getActivity(c, act.isEmpty() ? 0 : act.hashCode() & 0xFFFF, openApp, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
             Notification n = new Notification.Builder(c, "remind").setSmallIcon(R.drawable.ic_note)
                     .setContentTitle(r.optString("title", "Shark Week")).setContentText(r.optString("text", ""))
                     .setVisibility(Notification.VISIBILITY_PRIVATE)

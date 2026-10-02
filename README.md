@@ -22,6 +22,25 @@ BBT chart with three-over-six ovulation detection, plain-English pattern notes),
 "worth a chat with your GP" flags (healthdirect/Jean Hailes thresholds), printable doctor summary,
 JSON/CSV export, account deletion, devices list, Android reminders (optionally discreet).
 
+**Sleep report (Android):** with *Usage access*, `Sleep.java` reads only screen on/off events (no app names)
+and takes each morning's longest screen-off stretch between 6 pm and 2 pm (short checks under 6 min count as
+"woke in the night"). The result goes into that day's encrypted log (`sleepAuto`) and fills in hours slept
+unless typed manually. Today shows last night, a 7-night chart, bedtime consistency and sleep by cycle phase.
+
+**Partner heads-up (opt-in):** `/partner#ID.KEY` shows a playful forecast (status level, countdown, likely
+symptoms with "how to help", survival kit, golden rules). The owner's device encrypts it with KEY, which exists
+only in the link; the server stores ciphertext (`partner_shares`). A nudge (in-app card + Android notification)
+`before` days out sends a pre-written message via the share sheet. Turning it off deletes the forecast.
+
+**Password resets:** (1) recovery code, keeps data; (2) a signed-in device resets it (Me → Forgot your
+password?), keeps data, and must prove it holds the data key, so a stolen session token isn't enough; (3) email
+link (needs a sending domain + Workers Paid; see below) starts the account fresh, since old logs can't be decrypted.
+
+### Turning on email reset
+Add a domain to Cloudflare, onboard it in Email Service, upgrade to Workers Paid, then in `wrangler.jsonc` add
+`"send_email": [{ "name": "EMAIL" }]` and `"vars": { "EMAIL_FROM": "reset@yourdomain" }` and deploy. The app shows
+the email option automatically once `/api/config` reports `emailReset: true`.
+
 ## Updates
 `./release.sh "What changed"` builds a new APK (version code = minutes since 1970), deploys the site/API,
 publishes the APK and `/version.json`, pushes to GitHub and creates a release.

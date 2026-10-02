@@ -239,7 +239,9 @@ const EXERCISE = [["none", "None"], ["light", "Light"], ["moderate", "Moderate"]
 const MEDS = [["painrelief", "Pain relief"], ["iron", "Iron"], ["magnesium", "Magnesium"], ["vitd", "Vitamin D"], ["omega3", "Omega-3"], ["pill", "Contraceptive pill"]];
 const LABEL = Object.fromEntries([...FLOWS, ...SYMPTOMS, ...MOODS, ...MUCUS, ...MEDS]);
 const DEFAULT_SETTINGS = { cycleLen: 28, periodLen: 5, luteal: 14, fertile: true, theme: "auto",
-  remind: { on: false, before: 2, hour: 9, discreet: true, fertile: false, daily: false }, secure: true };
+  remind: { on: false, before: 2, hour: 9, discreet: true, fertile: false, daily: false }, secure: true,
+  sleepAuto: false,
+  partner: { on: false, id: "", key: "", name: "", from: "", before: 2, symptoms: true, sentFor: "" } };
 
 // ---------- app state ----------
 const S = {
@@ -328,6 +330,21 @@ async function importDataKeys(raw) {
   raw.fill(0);
   return keys;
 }
+/** Proves to the server that a device holds the data key, without revealing it. */
+const keyProofOf = async raw => b64(await hkdf(raw, "sharkweek-keyproof-v1"));
+/** A copy of the data key encrypted with a key that never leaves this device (non-extractable, in IndexedDB),
+ *  so a signed-in device can set a new password if you forget the old one. */
+async function saveDeviceCopy(raw) {
+  const k = await subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  const iv = rand(12);
+  const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv }, k, raw));
+  await idb.set("device", { key: k, data: b64(cat(iv, ct)) });
+}
+async function deviceRaw() {
+  const d = await idb.get("device"); if (!d) return null;
+  const u = unb64(d.data);
+  return new Uint8Array(await subtle.decrypt({ name: "AES-GCM", iv: u.slice(0, 12) }, d.key, u.slice(12)));
+}
 const idCache = new Map();
 async function docId(key) {
   if (!idCache.has(key)) idCache.set(key, b64(new Uint8Array(await subtle.sign("HMAC", S.keys.id, te.encode(key)))).slice(0, 22));
@@ -376,7 +393,7 @@ async function saveDoc(key, value) {
 }
 function applyDoc(d) {
   if (!d || typeof d.k !== "string") return;
-  if (d.k === "settings") S.settings = { ...DEFAULT_SETTINGS, ...d.v, remind: { ...DEFAULT_SETTINGS.remind, ...(d.v && d.v.remind) } };
+  if (d.k === "settings") S.settings = { ...DEFAULT_SETTINGS, ...d.v, remind: { ...DEFAULT_SETTINGS.remind, ...(d.v && d.v.remind) }, partner: { ...DEFAULT_SETTINGS.partner, ...(d.v && d.v.partner) } };
   else if (d.k.startsWith("day:")) {
     const day = d.k.slice(4);
     if (d.v && Object.keys(d.v).length) S.days[day] = d.v; else delete S.days[day];
@@ -425,6 +442,7 @@ async function sync() {
       S.sync = { state: "ok", at: Date.now() };
       setSync("ok");
       if (changed) { render(); pushReminders(); }
+      uploadForecast();
       if ((await idb.allDocs()).some(d => d.dirty)) syncSoon(3000);
     } catch (e) {
       setSync(e.status === 0 ? "off" : "err", e.message);
@@ -601,7 +619,7 @@ document.addEventListener("click", e => {
   const tab = e.target.closest("[data-tab]");
   if (tab) { S.tab = tab.dataset.tab; S.calEdit = false; render(); scrollTo(0, 0); return; }
   const a = e.target.closest("[data-act]");
-  if (a && ACT[a.dataset.act]) { e.preventDefault(); ACT[a.dataset.act](a, e); }
+  if (a && ACT[a.dataset.act]) { if (a.type !== "checkbox") e.preventDefault(); ACT[a.dataset.act](a, e); }
 });
 const ACT = {}; // click handlers by data-act name (inline handlers are blocked by the Content-Security-Policy)
 
@@ -651,6 +669,8 @@ function viewToday() {
   </section>
   ${flags.length ? `<section class="card"><h2>Worth a chat with your GP</h2>${flags.map(f => `<div class="warnbox" style="margin-bottom:8px"><b>${esc(f[0])}.</b> ${esc(f[1])}</div>`).join("")}
     <p class="small muted">This is a prompt, not a diagnosis. healthdirect: <a href="tel:1800022222">1800 022 222</a> (24/7).</p></section>` : ""}
+  ${headsUpCard(m)}
+  ${sleepCard(m)}
   ${ph ? `<section class="card"><div class="row between"><h2 style="margin:0">${esc(ph.name)} phase</h2><span class="sw" style="background:${ph.color};width:14px;height:14px"></span></div>
     <p class="muted" style="margin-top:6px">${esc(ph.blurb)}</p>
     ${ph.tips.map(x => tipRow(x, ph.color)).join("")}
@@ -679,7 +699,7 @@ function summary(log) {
   for (const k of [...(log.sym || []), ...(log.mood || [])]) out.push(LABEL[k] || k);
   if (log.pain) out.push(`Pain ${log.pain}/10`);
   if (log.energy) out.push(`Energy ${log.energy}/5`);
-  if (log.sleep) out.push(`Slept ${log.sleep} h`);
+  if (log.sleepAuto) out.push(`Slept ${durText(log.sleepAuto.min)}`); else if (log.sleep) out.push(`Slept ${log.sleep} h`);
   if (log.temp) out.push(`${log.temp} °C`);
   if (log.note) out.push("Note");
   return out;
@@ -716,6 +736,194 @@ ACT.setFirst = async () => {
   for (let k = 0; k < Math.min(S.settings.periodLen, diff(today(), v) + 1); k++) await setDay(addDays(v, k), { flow: "medium" });
   toast("Saved. Adjust the days in the calendar any time."); render(); pushReminders();
 };
+
+// =============================== sleep report ============================================
+// Android: Sleep.java estimates bedtime and wake time from screen on/off times (with the person's
+// Usage access permission). The result is saved in that morning's (encrypted) log as sleepAuto, and
+// fills in "hours slept" unless the person typed their own.
+const hhmm = ts => new Date(ts).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" }).replace(" ", "\u202f");
+const durText = min => `${Math.floor(min / 60)} h ${String(Math.round(min % 60)).padStart(2, "0")} m`;
+async function syncSleep() {
+  if (!NATIVE || !NATIVE.sleepNights || !S.settings.sleepAuto || !S.auth) return;
+  let nights = [];
+  try { nights = JSON.parse(NATIVE.sleepNights(10)); } catch { return; }
+  let changed = false;
+  for (const n of nights) {
+    const v = S.days[n.date] || {}, auto = { bed: n.bed, wake: n.wake, min: n.min, wakes: n.wakes };
+    if (JSON.stringify(v.sleepAuto) === JSON.stringify(auto)) continue;
+    const patch = { sleepAuto: auto };
+    if (!v.sleep || v.sleepSrc === "auto") { patch.sleep = Math.round(n.min / 30) / 2; patch.sleepSrc = "auto"; }
+    await setDay(n.date, patch); changed = true;
+  }
+  if (changed && S.tab === "today") render();
+}
+/** Which phase a past date was in (for "how you sleep by phase"). */
+function phaseOn(date, m) {
+  const ps = m.periods; let i = -1;
+  for (let k = 0; k < ps.length; k++) if (ps[k].start <= date) i = k;
+  if (i < 0) return null;
+  const p = ps[i], next = ps[i + 1], len = next ? diff(next.start, p.start) : m.avgCycle;
+  const day = diff(date, p.start) + 1;
+  if (day > 60) return null;
+  return phaseOf(day, len, p.len, len - m.luteal, day > len);
+}
+function sleepCard(m) {
+  const t = today(), nights = [];
+  for (let k = 6; k >= 0; k--) { const d = addDays(t, -k), v = S.days[d] || {}; nights.push({ d, v, h: v.sleepAuto ? v.sleepAuto.min / 60 : +v.sleep || 0 }); }
+  const have = nights.filter(n => n.h > 0);
+  const offer = NATIVE && NATIVE.sleepNights && !S.settings.sleepAuto;
+  if (!have.length) return offer ? `<section class="card"><h2>Sleep report</h2><p class="muted">Let Shark Week estimate when you fall asleep and wake up from when your phone screen is off, then see how your sleep shifts across your cycle.</p><button class="btn ghost block" data-act="sleepOn">Turn on automatic sleep tracking</button></section>` : "";
+  const last = S.days[t] && S.days[t].sleepAuto;
+  const avg = have.reduce((a, n) => a + n.h, 0) / have.length;
+  // 7-night bars
+  const W = 360, H = 120, pl = 22, pt = 14, pb = 20, ih = H - pt - pb, slot = (W - pl) / 7, bw = Math.min(24, slot - 6), max = 10;
+  const y = h => pt + ih - Math.min(h, max) / max * ih;
+  let svg = "";
+  for (const g of [0, 5, 10]) svg += `<line class="grid" x1="${pl}" x2="${W}" y1="${y(g)}" y2="${y(g)}"/><text x="${pl - 5}" y="${y(g) + 4}" text-anchor="end">${g}</text>`;
+  svg += `<rect class="band" x="${pl}" width="${W - pl}" y="${y(9)}" height="${y(7) - y(9)}"/>`;
+  nights.forEach((n, i) => {
+    const x = pl + i * slot + (slot - bw) / 2;
+    if (n.h > 0) { const top = y(n.h), r = Math.min(4, pt + ih - top); svg += `<path d="M${x} ${pt + ih}V${top + r}q0 -${r} ${r} -${r}h${bw - 2 * r}q${r} 0 ${r} ${r}V${pt + ih}z" fill="var(--foll)"/>`; }
+    const a = n.v.sleepAuto;
+    svg += `<rect x="${pl + i * slot}" y="${pt}" width="${slot}" height="${ih}" fill="transparent" data-tip="${esc(fmt(n.d, { weekday: "short", day: "numeric", month: "short" }) + ": " + (n.h ? (a ? `${hhmm(a.bed)} – ${hhmm(a.wake)}, ${durText(a.min)}` : `${n.h} h`) : "no data"))}"/>`;
+    svg += `<text x="${x + bw / 2}" y="${H - 5}" text-anchor="middle">${esc(parse(n.d).toLocaleDateString("en-AU", { weekday: "narrow" }))}</text>`;
+  });
+  // bedtime consistency (minutes from 6 pm, so midnight crossings work)
+  const beds = have.filter(n => n.v.sleepAuto).map(n => { const b = new Date(n.v.sleepAuto.bed); return ((b.getHours() + 6) % 24) * 60 + b.getMinutes(); });
+  let consistency = "";
+  if (beds.length >= 3) {
+    const mean = beds.reduce((a, b) => a + b, 0) / beds.length, sd = Math.sqrt(beds.reduce((a, b) => a + (b - mean) ** 2, 0) / beds.length);
+    consistency = sd <= 30 ? "Your bedtime has been nice and steady this week." : `Your bedtime varied by about ±${Math.round(sd)} minutes. A steadier bedtime usually means better sleep.`;
+  }
+  // by phase (all history)
+  let phaseNote = "";
+  const by = {};
+  for (const [d, v] of Object.entries(S.days)) { const h = v.sleepAuto ? v.sleepAuto.min / 60 : +v.sleep; if (!h) continue; const ph = phaseOn(d, m); if (ph) (by[ph] = by[ph] || []).push(h); }
+  const av = k => by[k] && by[k].length >= 3 ? by[k].reduce((a, b) => a + b, 0) / by[k].length : null;
+  if (av("luteal") != null && av("follicular") != null) {
+    const dlt = Math.round((av("luteal") - av("follicular")) * 60);
+    if (Math.abs(dlt) >= 15) phaseNote = `You sleep about ${Math.abs(dlt)} minutes ${dlt < 0 ? "less" : "more"} in your luteal phase than your follicular phase.${dlt < 0 ? " Progesterone and a slightly higher body temperature can make sleep lighter before your period. A cooler room helps." : ""}`;
+  }
+  const tip = avg < 7 ? "You've averaged under 7 hours. Most adults need 7–9 hours (Sleep Health Foundation)." : "";
+  return `<section class="card"><div class="row between"><h2 style="margin:0">Sleep report</h2>${S.settings.sleepAuto ? '<span class="chip tag">Auto</span>' : ""}</div>
+    ${last ? `<div class="kv" style="margin:10px 0"><span class="k">Fell asleep (about)</span><span>${esc(hhmm(last.bed))}</span><span class="k">Woke up</span><span>${esc(hhmm(last.wake))}</span><span class="k">Asleep for</span><span><b>${esc(durText(last.min))}</b></span><span class="k">Woke in the night</span><span>${last.wakes ? plural(last.wakes, "time") : "not at all"}</span></div>`
+      : `<p class="muted small" style="margin:8px 0">${S.settings.sleepAuto ? "Last night's estimate appears once you've used your phone this morning." : "From the hours you've logged."}</p>`}
+    <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Hours slept over the last 7 nights">${svg}</svg>
+    <p class="small muted" style="margin:6px 0 0">Last 7 nights · average ${avg.toFixed(1)} h · shaded: 7–9 h</p>
+    ${[consistency, phaseNote, tip].filter(Boolean).map(x => `<p class="small" style="margin:8px 0 0">${esc(x)}</p>`).join("")}
+    ${offer ? `<button class="link small" data-act="sleepOn">Track sleep automatically</button>` : ""}
+    ${S.settings.sleepAuto ? `<p class="small muted" style="margin:8px 0 0">Estimated from when your screen was off. Reading in bed or a phone left face-up can skew it, so edit the hours in your log if needed.</p>` : ""}</section>`;
+}
+ACT.sleepOn = async () => {
+  S.settings.sleepAuto = true; await saveDoc("settings", S.settings);
+  if (!NATIVE.sleepAllowed()) {
+    modal(`<h2>One more step</h2><p>Android will open <b>Usage access</b>. Find <b>Shark Week</b> and switch it on, then come back.</p>
+      <p class="small muted">Shark Week only reads when your screen turned on and off, never which apps you used or what you did. It's worked out on your phone and saved encrypted in your log.</p>
+      <button class="btn primary block" data-act="openUsage">Open settings</button>`);
+  } else { await syncSleep(); render(); toast("Sleep tracking is on."); }
+};
+ACT.openUsage = () => { NATIVE.openUsageAccess(); history.back(); };
+
+// =============================== partner heads-up ========================================
+// A private link (/partner#ID.KEY) shows the partner a playful, informative "Shark Week forecast".
+// The forecast is encrypted on this device with KEY, which only exists in the link, so the server
+// can't read it. Switching it off deletes the forecast; the old link stops working.
+const PARTNER_SYMS = ["cramps", "headache", "migraine", "bloating", "tender", "acne", "backache", "fatigue", "nausea", "cravings", "insomnia", "hotflush", "dizzy", "constipation", "diarrhoea", "joint", "pelvic", "brainfog", "clots", "flooding", "irritable", "anxious", "sad", "swings", "sensitive", "low"];
+function likelySymptoms(m) {
+  const starts = m.periods.slice(-6).map(p => p.start), counts = {};
+  if (!starts.length) return [];
+  for (const st of starts) {
+    const seen = new Set();
+    for (let k = -5; k < m.avgPeriod; k++) { const v = S.days[addDays(st, k)]; if (!v) continue; for (const x of [...(v.sym || []), ...(v.mood || [])]) if (PARTNER_SYMS.includes(x)) seen.add(x + (k < 0 ? "|pre" : "|on")); }
+    for (const x of seen) counts[x] = (counts[x] || 0) + 1;
+  }
+  const merged = {};
+  for (const [x, c] of Object.entries(counts)) { const [k, w] = x.split("|"); (merged[k] = merged[k] || { k, label: LABEL[k] || k, pre: 0, on: 0 })[w] = c; }
+  return Object.values(merged).map(o => ({ ...o, pct: Math.round(Math.max(o.pre, o.on) / starts.length * 100), when: o.pre > o.on ? "before" : "during" }))
+    .filter(o => o.pct >= 30).sort((a, b) => b.pct - a.pct).slice(0, 6);
+}
+function forecast() {
+  const m = model(), pt = S.settings.partner, t = today();
+  const f = { v: 1, name: pt.name || "", from: pt.from || "", updated: Date.now(), tracked: m.periods.length, avgPeriod: m.avgPeriod, avgCycle: m.avgCycle };
+  if (m.last) Object.assign(f, { inPeriod: !!m.inPeriod, periodDay: m.inPeriod ? diff(t, m.last.start) + 1 : 0, nextStart: m.nextStart, daysUntil: diff(m.nextStart, t), late: Math.max(0, m.late), phase: m.phase });
+  if (pt.symptoms) f.likely = likelySymptoms(m);
+  return f;
+}
+const partnerLink = () => `${location.origin}/partner#${S.settings.partner.id}.${S.settings.partner.key}`;
+let lastForecast = "";
+async function uploadForecast(force) {
+  const pt = S.settings.partner;
+  if (!S.auth || !pt.on || !pt.id || !pt.key) return;
+  const f = forecast(), sig = JSON.stringify({ ...f, updated: 0 });
+  if (!force && sig === lastForecast) return;
+  try {
+    const key = await subtle.importKey("raw", unb64(pt.key), "AES-GCM", false, ["encrypt"]), iv = rand(12);
+    const ct = new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv, additionalData: te.encode(pt.id) }, key, te.encode(JSON.stringify(f))));
+    await api(`/api/partner/${pt.id}`, { method: "PUT", body: { data: b64(cat(iv, ct)) } });
+    lastForecast = sig;
+  } catch (e) { console.warn("Partner forecast not updated:", e.message); }
+}
+function headsUpText() {
+  const f = forecast(), pt = S.settings.partner, link = partnerLink();
+  const syms = (f.likely || []).slice(0, 3).map(x => x.label.toLowerCase());
+  const radar = syms.length ? ` On the radar: ${syms.join(", ")}.` : "";
+  let lead;
+  if (f.inPeriod) lead = `🦈 Shark Week has made landfall (day ${f.periodDay}).`;
+  else if (f.late > 0) lead = `🦈 Fin spotted. Shark Week could surface any day now.`;
+  else if (f.daysUntil <= 1) lead = `🦈 Strap in: Shark Week makes landfall ${f.daysUntil <= 0 ? "today" : "tomorrow"}.`;
+  else lead = `🦈 Shark Week forecast: landfall in about ${f.daysUntil} days. Strap in.`;
+  return `${pt.name ? pt.name + ", " + lead.charAt(0).toLowerCase() + lead.slice(1) : lead}${radar} Battle stations: heat pack, snacks, extra patience. Live forecast + how to help: ${link}`;
+}
+async function sendHeadsUp() {
+  const text = headsUpText(), pt = S.settings.partner, m = model();
+  await uploadForecast(true);
+  if (NATIVE && NATIVE.share) NATIVE.share(text);
+  else if (navigator.share) { try { await navigator.share({ text }); } catch { return; } }
+  else { try { await navigator.clipboard.writeText(text); toast("Copied. Paste it into a message to your partner."); } catch { toast("Couldn't copy. Use 'Copy link' in Me → Partner heads-up."); } }
+  pt.sentFor = m.nextStart || today(); await saveDoc("settings", S.settings); render();
+}
+function headsUpCard(m) {
+  const pt = S.settings.partner;
+  if (!pt.on || !m.last) return "";
+  const due = diff(m.nextStart, today());
+  const time = (due <= pt.before && due >= -2) || m.inPeriod && diff(today(), m.last.start) === 0;
+  if (!time || pt.sentFor === m.nextStart) return "";
+  const who = pt.name ? esc(pt.name) : "your partner";
+  const msg = m.inPeriod ? "Shark Week has arrived." : due > 0 ? `Shark Week is about ${plural(due, "day")} out.` : "Shark Week is due any time now.";
+  return `<section class="card" style="border-color:var(--period)"><h2>Strap in! 🦈</h2><p>${msg} Want to give ${who} a heads-up, with what to expect and how to help?</p>
+    <div class="row"><button class="btn primary grow" data-act="headsUp">Send heads-up</button><button class="btn ghost" data-act="headsUpLater">Not now</button></div></section>`;
+}
+ACT.headsUp = () => sendHeadsUp();
+ACT.headsUpLater = async () => { S.settings.partner.sentFor = model().nextStart; await saveDoc("settings", S.settings); render(); };
+ACT.partnerToggle = async el => {
+  const pt = S.settings.partner;
+  if (el.checked) {
+    pt.on = true; pt.id = b64(rand(16)).slice(0, 22); pt.key = b64(rand(32)); pt.sentFor = "";
+    await saveDoc("settings", S.settings); await uploadForecast(true); pushReminders(); render();
+    toast("Partner heads-up is on. Share the link with them.");
+  } else {
+    const id = pt.id; Object.assign(pt, { on: false, id: "", key: "" });
+    await saveDoc("settings", S.settings); pushReminders(); render();
+    if (id) api(`/api/partner/${id}`, { method: "DELETE" }).catch(() => {});
+    toast("Partner heads-up is off. The old link no longer works.");
+  }
+};
+ACT.partnerCopy = async () => { try { await navigator.clipboard.writeText(partnerLink()); toast("Link copied."); } catch { toast("Select the link and copy it."); } };
+ACT.partnerPreview = () => { if (NATIVE) NATIVE.openUrl(partnerLink()); else window.open(partnerLink(), "_blank", "noopener"); };
+window.swAction = a => { if (a === "partner" && S.auth && S.settings.partner.on) sendHeadsUp(); };
+function partnerSettings() {
+  const pt = S.settings.partner;
+  return `<section class="card"><h2>Partner heads-up</h2>
+    <p class="small muted">Give someone a private link to a fun "Shark Week forecast": a countdown, the symptoms you usually get and how they can help. Before your period you'll get a nudge to send them a heads-up. It's encrypted: only people with the link can see it, and it never shows fertility info.</p>
+    <label class="check"><input type="checkbox" id="partnerOn" data-act="partnerToggle" ${pt.on ? "checked" : ""}><span>Turn on partner heads-up</span></label>
+    ${pt.on ? `<div class="row"><label class="field grow"><span>Their name</span><input type="text" id="p_name" maxlength="40" value="${esc(pt.name)}" placeholder="e.g. Sam"></label>
+      <label class="field grow"><span>Your name (shown to them)</span><input type="text" id="p_from" maxlength="40" value="${esc(pt.from)}" placeholder="optional"></label></div>
+      <div class="row"><label class="field grow"><span>Nudge me to tell them</span><select id="p_before">${[1, 2, 3, 5, 7].map(n => `<option value="${n}" ${pt.before === n ? "selected" : ""}>${plural(n, "day")} before</option>`).join("")}</select></label></div>
+      <label class="check"><input type="checkbox" id="p_symptoms" ${pt.symptoms ? "checked" : ""}><span>Include my likely symptoms (from my logs)</span></label>
+      <div class="code small" style="font-size:.75rem;text-align:left">${esc(partnerLink())}</div>
+      <div class="row wrapok" style="margin-top:10px"><button class="btn primary grow" data-act="headsUp">Send heads-up now</button><button class="btn ghost grow" data-act="partnerCopy">Copy link</button><button class="btn ghost grow" data-act="partnerPreview">Preview</button></div>
+      <p class="small muted" style="margin:8px 0 0">Anyone with the link can see the forecast. Switch this off any time and the link stops working.</p>` : ""}</section>`;
+}
 
 // =============================== UI: log sheet ===========================================
 let sheetDay = null, saveTimer = null;
@@ -806,7 +1014,7 @@ $("#sheet").addEventListener("change", e => {
   if (NUMS[id]) {
     const x = e.target.value === "" ? "" : +e.target.value;
     if (x !== "" && (isNaN(x) || x < NUMS[id][0] || x > NUMS[id][1])) { toast(`Enter a number from ${NUMS[id][0]} to ${NUMS[id][1]}.`); return; }
-    setDay(sheetDay, { [id]: x === "" ? "" : Math.round(x * 100) / 100 }).then(flashSaved);
+    setDay(sheetDay, { [id]: x === "" ? "" : Math.round(x * 100) / 100, ...(id === "sleep" ? { sleepSrc: "" } : {}) }).then(flashSaved);
   }
 });
 function flushNote() {
@@ -1112,12 +1320,17 @@ function viewMe() {
     <label class="check"><input type="checkbox" id="r_daily" ${r.daily ? "checked" : ""}><span>Daily reminder to log</span></label>
     ${st.fertile ? `<label class="check"><input type="checkbox" id="r_fertile" ${r.fertile ? "checked" : ""}><span>Remind me when my fertile window starts</span></label>` : ""}
     <label class="check"><input type="checkbox" id="r_discreet" ${r.discreet ? "checked" : ""}><span>Discreet notifications (no mention of periods)</span></label></section>` : ""}
+  ${partnerSettings()}
+  ${NATIVE && NATIVE.sleepNights ? `<section class="card"><h2>Sleep tracking</h2>
+    <label class="check"><input type="checkbox" id="s_sleepAuto" ${st.sleepAuto ? "checked" : ""}><span>Estimate my sleep from when my phone screen is off</span></label>
+    <p class="small muted" style="margin:0">Needs Android's <i>Usage access</i> permission. Shark Week only reads screen on/off times, never which apps you use. ${st.sleepAuto && !NATIVE.sleepAllowed() ? '<button class="link small" data-act="openUsage">Allow Usage access</button>' : ""}</p></section>` : ""}
   <section class="card"><h2>Privacy & security</h2>
     ${NATIVE ? `<label class="check"><input type="checkbox" id="s_secure" ${st.secure ? "checked" : ""}><span>Hide app in recent-apps screen and block screenshots</span></label>` : ""}
     <label class="field"><span>Appearance</span><select id="s_theme">${[["auto", "Match device"], ["light", "Light"], ["dark", "Dark"]].map(([k, l]) => `<option value="${k}" ${st.theme === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <h3 style="margin-top:6px">Devices signed in</h3><div class="list" id="sessions"><div class="muted small">Loading…</div></div>
     <div class="row wrapok" style="margin-top:8px"><button class="btn ghost grow" data-act="endOthers">Sign out other devices</button></div>
-    <div class="row wrapok" style="margin-top:8px"><button class="btn ghost grow" data-act="changePw">Change password</button><button class="btn ghost grow" data-act="newRec">New recovery code</button></div></section>
+    <div class="row wrapok" style="margin-top:8px"><button class="btn ghost grow" data-act="changePw">Change password</button><button class="btn ghost grow" data-act="newRec">New recovery code</button></div>
+    <div class="row wrapok" style="margin-top:8px"><button class="btn ghost grow" data-act="devicePw">Forgot your password? Reset it here</button></div></section>
   <section class="card"><h2>Your data</h2><p class="small muted">Download everything you've logged (decrypted, on this device only).</p>
     <div class="row wrapok"><button class="btn ghost grow" data-act="export" data-k="json">Download JSON</button><button class="btn ghost grow" data-act="export" data-k="csv">Download CSV</button></div>
     <div class="row wrapok" style="margin-top:8px"><button class="btn ghost grow" data-act="report">Summary for your doctor</button></div>
@@ -1139,6 +1352,12 @@ $("#app").addEventListener("change", async e => {
     } else st[k] = el.value;
     if (k === "secure" && NATIVE) NATIVE.setSecure(st.secure);
     if (k === "theme") applyTheme();
+    if (k === "sleepAuto" && st.sleepAuto) { await saveDoc("settings", st); return ACT.sleepOn(); }
+  } else if (id.startsWith("p_")) {
+    const k = id.slice(2), el = e.target;
+    st.partner = { ...st.partner, [k]: el.type === "checkbox" ? el.checked : k === "before" ? +el.value : el.value.trim().slice(0, 40) };
+    await saveDoc("settings", st); uploadForecast(true); pushReminders(); toast("Saved"); return;
+  } else if (id === "partnerOn") { return;
   } else if (id.startsWith("r_")) {
     const k = id.slice(2), el = e.target;
     st.remind = { ...st.remind, [k]: el.type === "checkbox" ? el.checked : +el.value };
@@ -1172,9 +1391,9 @@ ACT.export = el => {
   let name, text, mime;
   if (el.dataset.k === "json") { name = `shark-week-export-${today()}.json`; mime = "application/json"; text = JSON.stringify({ exported: new Date().toISOString(), app: "Shark Week Tracker", settings: S.settings, days: Object.fromEntries(days.map(d => [d, S.days[d]])) }, null, 2); }
   else {
-    const cols = ["date", "flow", "symptoms", "mood", "pain", "energy", "stress", "sleep", "sleepQ", "temp", "mucus", "ovt", "libido", "ex", "water", "alcohol", "caffeine", "meds", "note"];
+    const cols = ["date", "flow", "symptoms", "mood", "pain", "energy", "stress", "sleep", "sleepQ", "fellAsleep", "wokeUp", "temp", "mucus", "ovt", "libido", "ex", "water", "alcohol", "caffeine", "meds", "note"];
     const q = v => { const s = Array.isArray(v) ? v.join("; ") : v == null ? "" : String(v); return /[",\n]/.test(s) || /^[=+\-@]/.test(s) ? `"${s.replace(/^([=+\-@])/, "'$1").replace(/"/g, '""')}"` : s; };
-    text = cols.join(",") + "\n" + days.map(d => { const v = S.days[d]; return [d, v.flow, v.sym, v.mood, v.pain, v.energy, v.stress, v.sleep, v.sleepQ, v.temp, v.mucus, v.ovt, v.libido, v.ex, v.water, v.alcohol, v.caffeine, v.meds, v.note].map(q).join(","); }).join("\n");
+    text = cols.join(",") + "\n" + days.map(d => { const v = S.days[d]; const sa = v.sleepAuto; return [d, v.flow, v.sym, v.mood, v.pain, v.energy, v.stress, v.sleep, v.sleepQ, sa ? new Date(sa.bed).toISOString() : "", sa ? new Date(sa.wake).toISOString() : "", v.temp, v.mucus, v.ovt, v.libido, v.ex, v.water, v.alcohol, v.caffeine, v.meds, v.note].map(q).join(","); }).join("\n");
     name = `shark-week-export-${today()}.csv`; mime = "text/csv";
   }
   if (NATIVE) { const r = NATIVE.saveFile(name, text, mime); toast(r || "Saved to Downloads"); return; }
@@ -1215,6 +1434,26 @@ ACT.doChangePw = async btn => {
     await api("/api/password", { method: "POST", body: { current: cur.auth, salt, iter: PBKDF2_ITER, auth: nk.auth, wrapped } });
     S.auth = { ...S.auth, salt, iter: PBKDF2_ITER, wrapped }; await idb.set("auth", S.auth);
     history.back(); toast("Password changed.");
+  } catch (e) { err.textContent = e.message; busy(btn, false); }
+};
+ACT.devicePw = () => {
+  modal(`<h2>Reset your password</h2><p class="small muted">Because you're signed in on this device, you can set a new password without the old one. Your logs are kept. Other devices will be signed out.</p>
+    <label class="field"><span>New password (10+ characters)</span><input type="password" id="dp_new" autocomplete="new-password"></label>
+    <label class="field"><span>Confirm new password</span><input type="password" id="dp_new2" autocomplete="new-password"></label>
+    <div class="err" id="dp_err"></div><button class="btn primary block" data-act="doDevicePw">Set new password</button>`);
+};
+ACT.doDevicePw = async btn => {
+  const err = $("#dp_err"); err.textContent = "";
+  const pw = $("#dp_new").value, bad = passwordProblem(pw, S.auth.email); if (bad) return err.textContent = bad;
+  if (pw !== $("#dp_new2").value) return err.textContent = "The passwords don't match.";
+  busy(btn, true, "Re-encrypting…");
+  try {
+    const raw = await deviceRaw().catch(() => null);
+    if (!raw) throw new ApiError(0, "This device was signed in before this feature existed. Use your recovery code (sign out, then 'Forgot password?'), or sign in again once to enable it.");
+    const salt = b64(rand(16)), nk = await passwordKeys(pw, salt, PBKDF2_ITER), wrapped = await wrapRaw(nk.wrap, raw), keyProof = await keyProofOf(raw); raw.fill(0);
+    await api("/api/password/device", { method: "POST", body: { keyProof, salt, iter: PBKDF2_ITER, auth: nk.auth, wrapped } });
+    S.auth = { ...S.auth, salt, iter: PBKDF2_ITER, wrapped }; await idb.set("auth", S.auth);
+    history.back(); toast("Password reset. Use it next time you sign in.");
   } catch (e) { err.textContent = e.message; busy(btn, false); }
 };
 ACT.newRec = () => {
@@ -1261,6 +1500,11 @@ function pushReminders() {
     }
   }
   if (m.last && r.fertile && S.settings.fertile && m.late <= 0) out.push({ at: at(m.fertileStart, r.hour), title: "Shark Week Tracker", text: disc ? "Check in with Shark Week today" : "Your estimated fertile window starts today." });
+  const pt = S.settings.partner;
+  if (m.last && pt.on && m.late <= 0) {
+    const day = addDays(m.nextStart, -pt.before);
+    if (day >= today()) out.push({ at: at(day, Math.max(r.hour, 9)), title: "Shark Week Tracker", text: disc ? "Time for a heads-up? Tap to send it." : `Strap in! Tap to give ${pt.name || "your partner"} the Shark Week heads-up 🦈`, act: "partner" });
+  }
   if (r.daily) for (let k = 0; k < 30; k++) out.push({ at: at(addDays(today(), k), Math.max(r.hour, 20)), title: "Shark Week Tracker", text: "How are you feeling today? Tap to log." });
   NATIVE.setReminders(JSON.stringify(out.filter(x => x.at > now).sort((a, b) => a.at - b.at).slice(0, 60)));
 }
@@ -1339,12 +1583,54 @@ function showAuth(mode, msg) {
     <label class="field"><span>New password (10+ characters)</span><input type="password" id="a_pw" autocomplete="new-password"></label>
     <div class="err" id="a_err"></div><button class="btn primary block" type="submit">Reset password</button>
     <button class="link" type="button" data-act="goAuth" data-k="signin" style="margin-top:8px">Back to sign in</button>
-    <p class="small muted" style="margin-top:10px">Lost both? You can't recover the data (that's what keeps it private) — but you can delete the old account by emailing us and start again.</p></form>`;
+    </form>
+    <div class="card"><h3>No recovery code?</h3>
+    <p class="small"><b>Still signed in on another phone or computer?</b> Open Shark Week there and go to <i>Me → Forgot your password? Reset it here</i>. Your logs are kept.</p>
+    <div id="emailReset" class="small muted">Otherwise your logs can't be unlocked (that's what keeps them private).</div></div>`;
   $("#app").innerHTML = `<main class="auth">${msg ? `<div class="note" style="margin-bottom:12px">${esc(msg)}</div>` : ""}${body}
     <p class="small muted center" style="margin-top:20px"><a href="/">About Shark Week</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p></main>`;
   const f = $("form"); if (f) { f.addEventListener("submit", e => { e.preventDefault(); AUTH[mode](f); }); }
+  if (mode === "forgot") fetch("/api/config").then(r => r.json()).then(c => {
+    const el = $("#emailReset"); if (!el || !c.emailReset) return;
+    el.innerHTML = `<p class="small"><b>Lost your recovery code too?</b> We can email you a link to set a new password. Your account stays, but your old logs are erased, because they can't be unlocked without the old password or code.</p>
+      <label class="field"><span>Email</span><input type="email" id="er_email" autocomplete="username"></label><div class="err" id="er_err"></div>
+      <button class="btn ghost block" data-act="sendReset">Email me a reset link</button>`;
+  }).catch(() => {});
 }
 ACT.goAuth = el => showAuth(el.dataset.k);
+ACT.sendReset = async btn => {
+  const err = $("#er_err"); err.textContent = "";
+  const email = normEmail($("#er_email").value); if (!email) return err.textContent = "Enter your email.";
+  busy(btn, true, "Sending…");
+  try { await api("/api/reset/email", { method: "POST", body: { email } }); btn.textContent = "Sent"; err.style.color = "var(--ok)"; err.textContent = "If there's an account for that email, a reset link is on its way. It works for 1 hour."; }
+  catch (e) { err.textContent = e.message; busy(btn, false); }
+};
+/** Opened from the email link (/app#reset=TOKEN). */
+function showEmailReset(token) {
+  showAuth("signin");
+  $("#app main").innerHTML = `<div class="card"><h2>Set a new password</h2>
+    <div class="warnbox" style="margin-bottom:12px"><b>Your existing logs will be erased.</b> They're encrypted with your old password, so they can't be unlocked without it. If you have your recovery code, <button class="link" data-act="goAuth" data-k="forgot" style="padding:0">use it instead</button> to keep them.</div>
+    <label class="field"><span>New password (10+ characters)</span><input type="password" id="er_pw" autocomplete="new-password"></label>
+    <label class="field"><span>Confirm new password</span><input type="password" id="er_pw2" autocomplete="new-password"></label>
+    <label class="check"><input type="checkbox" id="er_ok"><span>I understand my old logs will be permanently erased.</span></label>
+    <div class="err" id="er_err"></div><button class="btn primary block" data-act="doEmailReset">Reset password and start fresh</button></div>`;
+  ACT.doEmailReset = async btn => {
+    const err = $("#er_err"); err.textContent = "";
+    const pw = $("#er_pw").value, bad = passwordProblem(pw, ""); if (bad) return err.textContent = bad;
+    if (pw !== $("#er_pw2").value) return err.textContent = "The passwords don't match.";
+    if (!$("#er_ok").checked) return err.textContent = "Tick the box to confirm.";
+    busy(btn, true, "Creating your new keys…");
+    try {
+      // The email isn't known yet on this device; the recovery code is bound to it, so ask the server after.
+      const raw = rand(64), salt = b64(rand(16)), k = await passwordKeys(pw, salt, PBKDF2_ITER), wrapped = await wrapRaw(k.wrap, raw);
+      const pre = await api("/api/reset/email/peek", { method: "POST", body: { token } });
+      const code = newRecoveryCode(), rk = await recoveryKeys(code, pre.email), wrappedRec = await wrapRaw(rk.wrap, raw);
+      const r = await api("/api/reset/email/confirm", { method: "POST", body: { token, salt, iter: PBKDF2_ITER, auth: k.auth, wrapped, recAuth: rk.auth, wrappedRec, keyProof: await keyProofOf(raw) } });
+      history.replaceState(null, "", "/app");
+      showRecoveryCode($("#app main"), code, async () => { await startSession({ token: r.token, email: r.email, salt, iter: PBKDF2_ITER, wrapped }, raw); }, "Password reset. Here's your new recovery code. Save it this time!", r.email);
+    } catch (e) { err.textContent = e.message; busy(btn, false); }
+  };
+}
 const AUTH = {
   async signin(f) {
     const err = $("#a_err"), btn = $("button[type=submit]", f); err.textContent = "";
@@ -1371,7 +1657,7 @@ const AUTH = {
     try {
       const raw = rand(64), salt = b64(rand(16)), k = await passwordKeys(pw, salt, PBKDF2_ITER), wrapped = await wrapRaw(k.wrap, raw);
       const code = newRecoveryCode(), rk = await recoveryKeys(code, email), wrappedRec = await wrapRaw(rk.wrap, raw);
-      const r = await api("/api/signup", { method: "POST", body: { email, salt, iter: PBKDF2_ITER, auth: k.auth, wrapped, recAuth: rk.auth, wrappedRec, acceptTerms: true, healthConsent: true, age16: true } });
+      const r = await api("/api/signup", { method: "POST", body: { email, salt, iter: PBKDF2_ITER, auth: k.auth, wrapped, recAuth: rk.auth, wrappedRec, keyProof: await keyProofOf(raw), acceptTerms: true, healthConsent: true, age16: true } });
       showRecoveryCode($("#app main"), code, async () => { await startSession({ token: r.token, email, salt, iter: PBKDF2_ITER, wrapped }, raw); }, "", email);
     } catch (e) { err.textContent = e.message; busy(btn, false); }
   },
@@ -1407,10 +1693,13 @@ function showRecoveryCode(el, code, done, lead, email = S.auth && S.auth.email) 
 }
 async function startSession(authInfo, raw) {
   await idb.wipe();
+  const proof = await keyProofOf(raw);
+  await saveDeviceCopy(raw);
   S.keys = await importDataKeys(raw);
   S.auth = authInfo;
   await idb.set("auth", authInfo); await idb.set("keys", S.keys);
   idCache.clear();
+  api("/api/keyproof", { method: "POST", body: { keyProof: proof } }).catch(() => {}); // for accounts made before device resets existed
   await loadLocal();
   $("#app").innerHTML = `<div class="auth center"><span class="spinner"></span><p class="muted">Fetching and decrypting your data…</p></div>`;
   await sync();
@@ -1434,6 +1723,8 @@ async function checkConsent() {
 async function boot() {
   if ("serviceWorker" in navigator && !NATIVE && location.protocol === "https:") navigator.serviceWorker.register("/sw.js").catch(() => {});
   const params = new URLSearchParams(location.search);
+  const reset = (location.hash.match(/^#reset=([A-Za-z0-9_-]{43})$/) || [])[1];
+  if (reset) return showEmailReset(reset); // this device's own session (if any) is only replaced once the reset succeeds
   try {
     S.auth = await idb.get("auth"); S.keys = await idb.get("keys");
   } catch { S.auth = null; }
@@ -1441,12 +1732,13 @@ async function boot() {
   await loadLocal();
   if (NATIVE) NATIVE.setSecure(S.settings.secure);
   render();
-  sync().then(() => { pushReminders(); checkConsent(); checkUpdate(); });
+  sync().then(() => { pushReminders(); checkConsent(); checkUpdate(); syncSleep(); uploadForecast(); });
   setInterval(() => document.visibilityState === "visible" && sync(), 5 * 60e3);
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && S.auth) { sync(); checkUpdate(); if (S.tab === "today") render(); } });
 addEventListener("online", () => S.auth && sync());
-window.swResume = () => S.auth && sync();
+addEventListener("hashchange", () => { const t = (location.hash.match(/^#reset=([A-Za-z0-9_-]{43})$/) || [])[1]; if (t) showEmailReset(t); });
+window.swResume = () => { if (S.auth) { sync(); syncSleep(); } };
 boot();
 </script>
 </body>

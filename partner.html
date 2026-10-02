@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shark Week Forecast</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#07162A">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<style>
+:root {
+  --bg: #07162A; --surface: #0E2340; --surface2: #15305A; --line: #21406B;
+  --text: #EAF2FF; --muted: #A3B6D3; --accent: #FF6B86;
+  --calm: #2BD9C5; --watch: #FFC857; --warn: #FF9F43; --shark: #FF4D6D;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; min-height: 100vh;
+  background-image: radial-gradient(circle at 20% -10%, #15305A 0, transparent 50%), radial-gradient(circle at 110% 30%, #0f2a4d 0, transparent 40%); }
+main { max-width: 560px; margin: 0 auto; padding: 20px 16px 48px; }
+h1, h2, h3 { line-height: 1.2; margin: 0 0 .5rem; }
+p { margin: 0 0 .8rem; }
+a { color: var(--accent); }
+.top { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.top svg { width: 40px; height: 40px; flex: none; }
+.top .t { font-weight: 800; font-size: 1.15rem; }
+.top .s { color: var(--muted); font-size: .85rem; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 18px; margin-bottom: 14px; }
+.status { text-align: center; padding: 26px 18px; position: relative; overflow: hidden; border-width: 2px; }
+.status .level { display: inline-block; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: .8rem; padding: 6px 12px; border-radius: 999px; color: #07162A; }
+.status .big { font-size: clamp(3.4rem, 18vw, 5.2rem); font-weight: 900; line-height: 1; margin: 16px 0 4px; }
+.status .unit { color: var(--muted); font-weight: 700; }
+.status h2 { font-size: 1.5rem; margin: 12px 0 6px; }
+.status p { color: var(--muted); margin: 0; }
+.fin { position: absolute; bottom: -6px; right: -10px; width: 120px; opacity: .12; }
+.meter { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 18px 0 6px; }
+.meter i { height: 8px; border-radius: 4px; background: var(--surface2); }
+.meter-l { display: flex; justify-content: space-between; color: var(--muted); font-size: .72rem; }
+.sym { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.sym:last-child { border-bottom: 0; }
+.sym b { font-size: 1.02rem; }
+.sym .pct { color: var(--muted); font-size: .85rem; text-align: right; }
+.sym .help { grid-column: 1 / -1; color: var(--muted); font-size: .93rem; }
+.bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--surface2); overflow: hidden; margin: 4px 0; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+ul.kit { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+ul.kit li { background: var(--surface2); border-radius: 12px; padding: 10px; font-size: .92rem; }
+ul.kit li span { display: block; font-size: 1.4rem; }
+ol.rules { padding-left: 20px; margin: 0; }
+ol.rules li { margin-bottom: 8px; }
+.muted { color: var(--muted); } .small { font-size: .85rem; }
+.center { text-align: center; }
+.spinner { width: 26px; height: 26px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .9s linear infinite; margin: 40px auto; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+</style>
+</head>
+<body>
+<main id="main"><div class="spinner" role="status" aria-label="Loading"></div></main>
+<script>
+"use strict";
+// Shark Week Forecast for partners. The link is /partner#ID.KEY; KEY never leaves this browser
+// (fragments aren't sent to servers). The forecast is decrypted here with it.
+const FIN = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0E2340"/><path d="M14.75 42.5C24.5 37.5 32.75 26.25 42.75 13C39.75 23.75 39.75 35 49 42.5z" fill="#E8506E"/><path d="M8 45.25c4 0 6-3 10-3s6 3 10 3 6-3 10-3 6 3 10 3 6-3 8-3" fill="none" stroke="#5B86E8" stroke-width="3.5" stroke-linecap="round"/></svg>';
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const unb64 = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+// How a partner can help, per symptom. Fun, but genuinely useful.
+const HELP = {
+  cramps: "Heat pack on standby, pain relief within reach (ask first), and you're on anything that needs bending or lifting.",
+  headache: "Dim the lights, bring water, keep the noise down. Not the night for the loud dinner party.",
+  migraine: "Dark, quiet room, water, and cancel plans without a fuss. Migraines are no joke.",
+  bloating: "Comfy clothes, zero comments about food or bellies. Peppermint tea is a nice touch.",
+  tender: "Gentle hugs only. Seriously, gentle.",
+  acne: "Say nothing about it. Compliments, however, are always in season.",
+  backache: "Offer a back rub and the good heat pack.",
+  fatigue: "Take a chore or two off the list. An early night is a valid plan, not a bad mood.",
+  nausea: "Plain snacks, ginger tea, fresh air. Maybe skip cooking anything smelly.",
+  cravings: "Stock the snack drawer. Chocolate counts as first aid.",
+  insomnia: "Cool, dark bedroom and no 11 pm debates. Sleep is precious this week.",
+  hotflush: "Fan on, window open, and no fighting over the thermostat.",
+  dizzy: "Water, a snack, and a seat. Keep an eye out.",
+  constipation: "Water, fibre, and privacy. Don't make it weird.",
+  diarrhoea: "Water, plain food, and bathroom access. Don't make it weird.",
+  joint: "Heat, rest and no big hikes this week.",
+  pelvic: "Heat pack and rest. If the pain is severe or getting worse over time, encourage a GP visit. It's not something to just put up with.",
+  brainfog: "Be the reminder app: write things down, gently. Don't quiz them.",
+  clots: "Spare supplies and dark towels nearby. If it's often heavy, a GP visit is worth it.",
+  flooding: "Spare supplies and dark sheets. If it's often this heavy, a GP visit is worth it.",
+  irritable: "Don't take it personally, and never, ever ask \"is it your period?\".",
+  anxious: "Be steady. Listen more than you fix.",
+  sad: "Check in, be kind, and offer company without pressure.",
+  swings: "Ride the waves. Patience is your superpower this week.",
+  sensitive: "Extra kindness, fewer jokes at their expense.",
+  low: "Low-key plans and no guilt trips. Motivation will be back.",
+};
+const PHASE = {
+  menstrual: "Hormones are at their lowest and the uterus is shedding its lining. Cramps and tiredness usually peak on days 1–2, then ease.",
+  follicular: "Oestrogen is climbing. Energy and mood often pick up. Calm waters.",
+  ovulatory: "Oestrogen peaks mid-cycle. Often a high-energy, sociable stretch.",
+  luteal: "Progesterone rises and then drops before the period. That drop is when PMS (mood, bloating, cravings, tiredness) tends to show up.",
+};
+
+function level(f) {
+  if (f.inPeriod) return { key: "shark", label: "Shark Week", color: "var(--shark)", step: 5, big: `Day ${f.periodDay}`, unit: `of about ${f.avgPeriod}`, head: "Shark Week has made landfall 🦈", sub: "Battle stations. Day 1–2 are usually the toughest." };
+  if (f.late > 0) return { key: "warn", label: "Fin spotted", color: "var(--warn)", step: 4, big: "Any day", unit: "now", head: "Fin spotted… surfacing soon", sub: `The forecast says it's ${plural(f.late, "day")} overdue. Cycles shift, so keep the kit handy.` };
+  if (f.daysUntil <= 2) return { key: "warn", label: "Strap in", color: "var(--warn)", step: 4, big: f.daysUntil <= 0 ? "Today" : String(f.daysUntil), unit: f.daysUntil <= 0 ? "expected" : plural(f.daysUntil, "day").replace(/^\d+ /, "") + " to go", head: "Strap in. Shark Week is close", sub: "Stock up now and thank yourself later." };
+  if (f.daysUntil <= 7) return { key: "watch", label: "Fin on the horizon", color: "var(--watch)", step: 3, big: String(f.daysUntil), unit: "days to go", head: "Fin on the horizon", sub: "PMS season: the week before can bring mood shifts, cravings and tiredness." };
+  return { key: "calm", label: "Calm waters", color: "var(--calm)", step: 1, big: String(f.daysUntil), unit: "days to go", head: "Calm waters 🌊", sub: "Enjoy the good stretch. We'll warn you when a fin appears." };
+}
+
+function render(f) {
+  const lv = f.nextStart ? level(f) : null;
+  const who = f.from ? esc(f.from) : "your person";
+  const likely = (f.likely || []);
+  const meter = lv ? `<div class="meter" aria-hidden="true">${[1, 2, 3, 4, 5].map(i => `<i style="${i <= lv.step ? `background:${lv.color}` : ""}"></i>`).join("")}</div><div class="meter-l"><span>Calm</span><span>Shark Week</span></div>` : "";
+  document.getElementById("main").innerHTML = `
+  <div class="top">${FIN}<div><div class="t">Shark Week Forecast</div><div class="s">${f.name ? `For ${esc(f.name)}, ` : ""}from ${who}</div></div></div>
+  ${lv ? `<section class="card status" style="border-color:${lv.color}">
+    <span class="level" style="background:${lv.color}">${esc(lv.label)}</span>
+    <div class="big">${esc(lv.big)}</div><div class="unit">${esc(lv.unit)}</div>
+    <h2>${esc(lv.head)}</h2><p>${esc(lv.sub)}</p>${meter}
+    <svg class="fin" viewBox="0 0 64 64" aria-hidden="true"><path d="M14.75 42.5C24.5 37.5 32.75 26.25 42.75 13C39.75 23.75 39.75 35 49 42.5z" fill="#fff"/></svg>
+  </section>` : `<section class="card status"><h2>No forecast yet</h2><p>${who} hasn't logged a period yet. Check back soon.</p></section>`}
+  ${likely.length ? `<section class="card"><h2>What's likely on the radar</h2><p class="muted small">From ${who}'s own logs over recent cycles.</p>
+    ${likely.map(x => `<div class="sym"><b>${esc(x.label)}</b><span class="pct">${x.pct}% of cycles · ${x.when === "before" ? "the days before" : "during"}</span>
+      <div class="bar"><i style="width:${Math.min(100, x.pct)}%"></i></div><div class="help">${esc(HELP[x.k] || "Ask what helps, and do that.")}</div></div>`).join("")}</section>` : ""}
+  ${f.phase ? `<section class="card"><h2>What's actually going on</h2><p class="muted" style="margin:0">${esc(PHASE[f.phase] || "")}</p></section>` : ""}
+  <section class="card"><h2>The Shark Week survival kit</h2>
+    <ul class="kit"><li><span>🔥</span>Heat pack</li><li><span>💊</span>Pain relief (ask first)</li><li><span>🍫</span>Snack stash</li><li><span>🫖</span>Tea & water</li><li><span>🛋️</span>Couch + remote</li><li><span>🧺</span>One less chore</li></ul></section>
+  <section class="card"><h2>Golden rules</h2><ol class="rules">
+    <li><b>Ask, don't assume.</b> "What would help?" beats guessing.</li>
+    <li><b>Feelings are real.</b> Never wave them away as "just hormones".</li>
+    <li><b>Be the logistics.</b> Supplies, dinner, the dishes. Quietly handled.</li>
+    <li><b>Know when it's not normal.</b> Pain that stops normal life, very heavy bleeding or big mood crashes deserve a GP visit. Back them up in getting help.</li></ol></section>
+  <p class="small muted center">Updated ${esc(new Date(f.updated).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }))}. Forecasts are estimates and can be off by a few days. Not for contraception.<br>
+  Tip: add this page to your home screen to check the forecast any time.<br><a href="/">What is Shark Week Tracker?</a></p>`;
+}
+
+function fail(msg) {
+  document.getElementById("main").innerHTML = `<div class="top">${FIN}<div class="t">Shark Week Forecast</div></div><section class="card"><h2>Calm waters… or no signal</h2><p class="muted" style="margin:0">${esc(msg)}</p></section><p class="small center"><a href="/">What is Shark Week Tracker?</a></p>`;
+}
+
+(async () => {
+  const m = location.hash.match(/^#([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$/);
+  if (!m) return fail("This link looks incomplete. Ask for the full link again.");
+  try {
+    const r = await fetch(`/api/partner/${m[1]}`, { cache: "no-store" });
+    if (r.status === 404) return fail("This forecast has been switched off by its owner.");
+    if (!r.ok) return fail("Couldn't load the forecast right now. Try again in a bit.");
+    const { data } = await r.json(), u = unb64(data);
+    const key = await crypto.subtle.importKey("raw", unb64(m[2]), "AES-GCM", false, ["decrypt"]);
+    const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: u.slice(0, 12), additionalData: new TextEncoder().encode(m[1]) }, key, u.slice(12));
+    render(JSON.parse(new TextDecoder().decode(pt)));
+  } catch { fail("Couldn't open this forecast. The link may have been changed. Ask for a new one."); }
+})();
+</script>
+</body>
+</html>

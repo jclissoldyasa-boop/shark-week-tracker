@@ -19,6 +19,7 @@ async function hkdf(ikm, info, salt = "") {
 }
 async function pwKeys(pw, salt, iter) { const m = await pbkdf2(pw, salt, iter); return { auth: b64(await hkdf(m, "sharkweek-auth-v1")), wrap: await hkdf(m, "sharkweek-wrap-v1") }; }
 async function recKeys(code, email) { const c = te.encode(code); return { auth: b64(await hkdf(c, "sharkweek-rec-auth-v1", email)), wrap: await hkdf(c, "sharkweek-rec-wrap-v1", email) }; }
+const proofOf = async raw => b64(await hkdf(raw, "sharkweek-keyproof-v1"));
 async function wrap(key, raw) {
   const iv = rand(12), k = await subtle.importKey("raw", key, "AES-GCM", false, ["encrypt"]);
   return b64(Buffer.concat([iv, new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv, additionalData: te.encode("sharkweek-key-v1") }, k, raw))]));
@@ -41,7 +42,7 @@ async function newUser(tag) {
   const raw = rand(64), salt = b64(rand(16)), k = await pwKeys(password, salt, ITER);
   const code = "ABCDEFGHJKLMNPQRSTUVWXYZ2".split("").sort(() => Math.random() - .5).join("");
   const rk = await recKeys(code, email);
-  const r = await call("/api/signup", { method: "POST", body: { email, salt, iter: ITER, auth: k.auth, wrapped: await wrap(k.wrap, raw), recAuth: rk.auth, wrappedRec: await wrap(rk.wrap, raw), acceptTerms: true, healthConsent: true, age16: true } });
+  const r = await call("/api/signup", { method: "POST", body: { email, salt, iter: ITER, auth: k.auth, wrapped: await wrap(k.wrap, raw), recAuth: rk.auth, wrappedRec: await wrap(rk.wrap, raw), keyProof: await proofOf(raw), acceptTerms: true, healthConsent: true, age16: true } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   return { email, password, raw, salt, auth: k.auth, code, token: r.body.token };
 }
@@ -65,7 +66,8 @@ await test("pages have security headers and a hash-only script policy", async ()
 
 await test("signup rejects missing consent, weak key data and duplicates", async () => {
   const k = await pwKeys("whatever whatever", "saltsaltsaltsaltsaltsa", ITER);
-  const base = { email: `x-${Date.now()}@example.com`, salt: "saltsaltsaltsaltsaltsa", iter: ITER, auth: k.auth, wrapped: ct(), recAuth: k.auth, wrappedRec: ct(), acceptTerms: true, healthConsent: true, age16: true };
+  const base = { email: `x-${Date.now()}@example.com`, salt: "saltsaltsaltsaltsaltsa", iter: ITER, auth: k.auth, wrapped: ct(), recAuth: k.auth, wrappedRec: ct(), keyProof: k.auth, acceptTerms: true, healthConsent: true, age16: true };
+  assert.equal((await call("/api/signup", { method: "POST", body: { ...base, keyProof: undefined } })).status, 400);
   assert.equal((await call("/api/signup", { method: "POST", body: { ...base, healthConsent: false } })).status, 400);
   assert.equal((await call("/api/signup", { method: "POST", body: { ...base, age16: false } })).status, 400);
   assert.equal((await call("/api/signup", { method: "POST", body: { ...base, iter: 1000 } })).status, 400);
@@ -170,6 +172,46 @@ await test("recovery code resets the password and keeps the data readable", asyn
   assert.equal((await call("/api/me", { token: B.token })).status, 401, "old sessions end");
   assert.equal((await call("/api/recover/key", { method: "POST", body: { email: B.email, recAuth: rk.auth } })).status, 401, "old code stops working");
   B.token = r2.body.token; B.auth = nk.auth;
+});
+
+await test("forgot password on a signed-in device: needs the data key, not just a session", async () => {
+  const salt = b64(rand(16)), nk = await pwKeys("device reset password", salt, ITER), wrapped = await wrap(nk.wrap, A.raw);
+  const second = (await call("/api/login", { method: "POST", body: { email: A.email, auth: A.auth } })).body.token;
+  // A stolen session token without the key can't do it.
+  assert.equal((await call("/api/password/device", { method: "POST", token: A.token, body: { keyProof: await proofOf(rand(64)), salt, iter: ITER, auth: nk.auth, wrapped } })).status, 403);
+  assert.equal((await call("/api/password/device", { method: "POST", token: A.token, body: { salt, iter: ITER, auth: nk.auth, wrapped } })).status, 400);
+  // The device that holds the key can, without the old password.
+  assert.equal((await call("/api/password/device", { method: "POST", token: A.token, body: { keyProof: await proofOf(A.raw), salt, iter: ITER, auth: nk.auth, wrapped } })).status, 200);
+  assert.equal((await call("/api/me", { token: second })).status, 401, "other devices signed out");
+  const r = await call("/api/login", { method: "POST", body: { email: A.email, auth: nk.auth } });
+  assert.equal(r.status, 200); assert.deepEqual(await unwrap(nk.wrap, r.body.wrapped), A.raw, "same data key, data kept");
+  assert.equal((await call("/api/docs?since=0", { token: A.token })).body.docs.length, 151);
+  Object.assign(A, { salt, auth: nk.auth });
+});
+
+await test("email reset endpoints validate links", async () => {
+  const cfg = (await call("/api/config")).body;
+  const r = await call("/api/reset/email", { method: "POST", body: { email: A.email } });
+  assert.equal(r.status, cfg.emailReset ? 200 : 503);
+  for (const p of ["/api/reset/email/peek", "/api/reset/email/confirm"]) {
+    assert.equal((await call(p, { method: "POST", body: { token: "bad" } })).status, 400);
+    assert.equal((await call(p, { method: "POST", body: { token: b64(rand(32)) } })).status, 400);
+  }
+});
+
+await test("partner forecast: public by secret id, only its owner can change it", async () => {
+  const id = docId(), data = ct();
+  assert.equal((await call(`/api/partner/${id}`, { method: "PUT", body: { data } })).status, 401);
+  assert.equal((await call(`/api/partner/${id}`, { method: "PUT", token: A.token, body: { data } })).status, 200);
+  const pub = await call(`/api/partner/${id}`);
+  assert.equal(pub.status, 200); assert.equal(pub.body.data, data);
+  assert.equal((await call(`/api/partner/${id}`, { method: "PUT", token: B.token, body: { data: ct() } })).status, 403, "someone else can't overwrite it");
+  await call(`/api/partner/${id}`, { method: "DELETE", token: B.token });
+  assert.equal((await call(`/api/partner/${id}`)).body.data, data, "or delete it");
+  assert.equal((await call(`/api/partner/${docId()}`)).status, 404);
+  assert.equal((await call(`/api/partner/${id}`, { method: "PUT", token: A.token, body: { data: "not base64!" } })).status, 400);
+  assert.equal((await call(`/api/partner/${id}`, { method: "DELETE", token: A.token })).status, 200);
+  assert.equal((await call(`/api/partner/${id}`)).status, 404);
 });
 
 await test("delete account removes everything and only that account", async () => {

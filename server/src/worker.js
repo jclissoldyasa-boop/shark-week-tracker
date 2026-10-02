@@ -13,7 +13,7 @@
 
 import { CSP, ASSET_LINKS } from "./site.generated.js";
 
-const TERMS_VERSION = "2026-10-02"; // bump when the Terms or Privacy Policy change materially; the app re-asks consent
+const TERMS_VERSION = "2026-10-03"; // bump when the Terms or Privacy Policy change materially; the app re-asks consent
 const SESSION_IDLE = 90 * 864e5;    // sign out a device after 90 days unused
 const MAX_BODY = 2_000_000;         // bytes per request
 const MAX_DOC = 64_000;             // chars per encrypted document (one day of logs is ~1 KB)
@@ -24,6 +24,7 @@ const MIN_ITER = 300_000;           // device-side PBKDF2 iterations we accept (
 const DOC_ID = /^[A-Za-z0-9_-]{22}$/;
 const B64 = /^[A-Za-z0-9_-]+$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const RESET_TTL = 3600e3;           // email reset links last an hour
 
 const SECURITY_HEADERS = {
   "Strict-Transport-Security": "max-age=63072000; includeSubDomains",
@@ -60,6 +61,7 @@ export default {
     await env.DB.batch([
       env.DB.prepare("DELETE FROM sessions WHERE last_seen < ?").bind(now - SESSION_IDLE),
       env.DB.prepare("DELETE FROM attempts WHERE first < ?").bind(now - 864e5),
+      env.DB.prepare("DELETE FROM reset_tokens WHERE created < ?").bind(now - RESET_TTL),
     ]);
   },
 };
@@ -91,12 +93,17 @@ async function route(req, env, url) {
   if (+(req.headers.get("Content-Length") || 0) > MAX_BODY) throw new HttpError(413, "That request is too large.");
   if (!env.AUTH_PEPPER || env.AUTH_PEPPER.length < 32) throw new Error("AUTH_PEPPER secret is missing");
 
-  if (p === "/api/config" && m === "GET") return json({ terms: TERMS_VERSION });
+  if (p === "/api/config" && m === "GET") return json({ terms: TERMS_VERSION, emailReset: hasEmail(env) });
   if (p === "/api/prelogin" && m === "POST") return prelogin(req, env);
   if (p === "/api/signup" && m === "POST") return signup(req, env);
   if (p === "/api/login" && m === "POST") return login(req, env);
   if (p === "/api/recover/key" && m === "POST") return recoverKey(req, env);
   if (p === "/api/recover/reset" && m === "POST") return recoverReset(req, env);
+  if (p === "/api/reset/email" && m === "POST") return emailReset(req, env, url);
+  if (p === "/api/reset/email/confirm" && m === "POST") return emailResetConfirm(req, env);
+  const pm = p.match(/^\/api\/partner\/([A-Za-z0-9_-]{22})$/);
+  if (pm && m === "GET") return partnerGet(req, env, pm[1]);
+  if (p === "/api/reset/email/peek" && m === "POST") return json({ email: (await resetToken(env, req, (await readJson(req)).token)).email });
 
   const user = await auth(req, env);
   const rows = rowsFor(env, user.id);
@@ -106,8 +113,12 @@ async function route(req, env, url) {
   if (p === "/api/sessions" && m === "GET") return json({ sessions: await rows.sessions(user.tokenHash) });
   if (p === "/api/sessions/others" && m === "DELETE") { await rows.endOtherSessions(user.tokenHash); return json({ ok: true }); }
   if (p === "/api/password" && m === "POST") return changePassword(req, env, user, rows);
+  if (p === "/api/password/device" && m === "POST") return devicePassword(req, env, user, rows);
+  if (p === "/api/keyproof" && m === "POST") { await rows.setKeyProofIfMissing(await proofHash(env, keyProof((await readJson(req)).keyProof))); return json({ ok: true }); }
   if (p === "/api/recovery" && m === "POST") return newRecovery(req, env, user, rows);
   if (p === "/api/account" && m === "DELETE") return deleteAccount(req, env, user, rows);
+  if (pm && m === "PUT") { const d = String((await readJson(req, 40000)).data || ""); if (!B64.test(d) || d.length > 30000) throw new HttpError(400, "Bad data."); await rows.putPartner(pm[1], d); return json({ ok: true }); }
+  if (pm && m === "DELETE") { await rows.deletePartner(pm[1]); return json({ ok: true }); }
   if (p === "/api/docs" && m === "GET") return json(await rows.docsSince(+url.searchParams.get("since") || 0, url.searchParams.get("after") || ""));
   if (p === "/api/docs" && m === "POST") return putDocs(req, rows);
   throw new HttpError(404, "Not found.");
@@ -128,7 +139,17 @@ function rowsFor(env, uid) {
       return { email: u.email, created: u.created, consentCurrent: u.terms_version === TERMS_VERSION, terms: TERMS_VERSION, docs: n };
     },
     consent: () => db.prepare("UPDATE users SET terms_version = ?, consented = ? WHERE id = ?").bind(TERMS_VERSION, Date.now(), uid).run(),
-    secrets: () => db.prepare("SELECT email, kdf_salt, kdf_iter, auth_hash, wrapped_key FROM users WHERE id = ?").bind(uid).first(),
+    secrets: () => db.prepare("SELECT email, kdf_salt, kdf_iter, auth_hash, wrapped_key, key_proof FROM users WHERE id = ?").bind(uid).first(),
+    setKeyProofIfMissing: h => db.prepare("UPDATE users SET key_proof = ? WHERE id = ? AND key_proof IS NULL").bind(h, uid).run(),
+    /** Email reset without a recovery code: the old data key is gone, so the old (unreadable) logs go too. */
+    restartWithNewKey: (k, rec, proof) => db.batch([
+      db.prepare("DELETE FROM docs WHERE user_id = ?").bind(uid),
+      db.prepare("DELETE FROM sessions WHERE user_id = ?").bind(uid),
+      db.prepare("DELETE FROM reset_tokens WHERE user_id = ?").bind(uid),
+      db.prepare("DELETE FROM partner_shares WHERE user_id = ?").bind(uid),
+      db.prepare("UPDATE users SET kdf_salt = ?, kdf_iter = ?, auth_hash = ?, wrapped_key = ?, rec_hash = ?, wrapped_rec = ?, key_proof = ? WHERE id = ?")
+        .bind(k.salt, k.iter, k.authHash, k.wrapped, rec.hash, rec.wrapped, proof, uid),
+    ]),
     async sessions(current) {
       const { results } = await db.prepare("SELECT token_hash, created, last_seen, device FROM sessions WHERE user_id = ? ORDER BY last_seen DESC").bind(uid).all();
       return results.map(r => ({ id: r.token_hash.slice(0, 8), created: r.created, lastSeen: r.last_seen, device: r.device, current: r.token_hash === current }));
@@ -143,6 +164,8 @@ function rowsFor(env, uid) {
     deleteEverything: () => db.batch([
       db.prepare("DELETE FROM docs WHERE user_id = ?").bind(uid),
       db.prepare("DELETE FROM sessions WHERE user_id = ?").bind(uid),
+      db.prepare("DELETE FROM reset_tokens WHERE user_id = ?").bind(uid),
+      db.prepare("DELETE FROM partner_shares WHERE user_id = ?").bind(uid),
       db.prepare("DELETE FROM users WHERE id = ?").bind(uid),
     ]),
     async docsSince(since, after) {
@@ -158,6 +181,16 @@ function rowsFor(env, uid) {
         after: last ? last.doc_id : after,
       };
     },
+    async putPartner(id, data) {
+      const r = await db.prepare(
+        "INSERT INTO partner_shares (id, user_id, data, updated) VALUES (?, ?, ?, ?) " +
+        "ON CONFLICT (id) DO UPDATE SET data = excluded.data, updated = excluded.updated WHERE partner_shares.user_id = ?"
+      ).bind(id, uid, data, Date.now(), uid).run();
+      if (!r.meta.changes) throw new HttpError(403, "Not allowed.");
+      const n = await db.prepare("SELECT COUNT(*) AS n FROM partner_shares WHERE user_id = ?").bind(uid).first("n");
+      if (n > 3) await db.prepare("DELETE FROM partner_shares WHERE user_id = ? AND id NOT IN (SELECT id FROM partner_shares WHERE user_id = ? ORDER BY updated DESC LIMIT 3)").bind(uid, uid).run();
+    },
+    deletePartner: id => db.prepare("DELETE FROM partner_shares WHERE user_id = ? AND id = ?").bind(uid, id).run(),
     countDocs: () => db.prepare("SELECT COUNT(*) AS n FROM docs WHERE user_id = ?").bind(uid).first("n"),
     putDocs(docs, now) {
       return db.batch(docs.map(d => db.prepare(
@@ -190,12 +223,13 @@ async function signup(req, env) {
   if (b.age16 !== true) throw new HttpError(400, "You need to be 16 or older to create an account.");
   const k = keyMaterial(b);
   const rec = recMaterial(b);
+  const proof = await proofHash(env, keyProof(b.keyProof));
   await limit(env, "signup:" + ip(req), 10, 3600e3, "Too many new accounts from this connection. Try again later.");
   if (await byEmail(env, email, "1")) throw new HttpError(409, "There's already an account with that email. Sign in instead.");
   const id = crypto.randomUUID(), now = Date.now();
   await env.DB.prepare(
-    "INSERT INTO users (id, email, kdf_salt, kdf_iter, auth_hash, wrapped_key, rec_hash, wrapped_rec, created, terms_version, consented) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-  ).bind(id, email, k.salt, k.iter, await authHash(env, k.auth), k.wrapped, await authHash(env, rec.auth), rec.wrapped, now, TERMS_VERSION, now).run();
+    "INSERT INTO users (id, email, kdf_salt, kdf_iter, auth_hash, wrapped_key, rec_hash, wrapped_rec, created, terms_version, consented, key_proof) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ).bind(id, email, k.salt, k.iter, await authHash(env, k.auth), k.wrapped, await authHash(env, rec.auth), rec.wrapped, now, TERMS_VERSION, now, proof).run();
   return json({ token: await newSession(env, req, id), email });
 }
 
@@ -250,6 +284,72 @@ async function changePassword(req, env, user, rows) {
   return json({ ok: true });
 }
 
+/**
+ * Forgot your password but still signed in on a device: that device still holds the data key, so it
+ * re-encrypts it under a new password. It must prove it holds the key (keyProof), so a stolen session
+ * token alone can't take over the account. Other devices are signed out.
+ */
+async function devicePassword(req, env, user, rows) {
+  const b = await readJson(req);
+  await limit(env, "devpw:" + user.id, 5, 3600e3, "Too many tries. Wait an hour and try again.");
+  const s = await rows.secrets();
+  if (!s.key_proof || !safeEqual(await proofHash(env, keyProof(b.keyProof)), s.key_proof)) throw new HttpError(403, "This device can't confirm your encryption key. Sign in again, or use your recovery code.");
+  const k = keyMaterial(b);
+  await rows.setPassword({ ...k, authHash: await authHash(env, k.auth) }, user.tokenHash);
+  return json({ ok: true });
+}
+
+/** The partner's page fetches the encrypted forecast by its secret id (no account needed). */
+async function partnerGet(req, env, id) {
+  await limit(env, "partner:" + ip(req), 120, 15 * 60e3, "Too many requests. Try again shortly.");
+  const r = await env.DB.prepare("SELECT data, updated FROM partner_shares WHERE id = ?").bind(id).first();
+  if (!r) throw new HttpError(404, "This forecast has been switched off.");
+  return json(r);
+}
+
+// ---------- email reset (needs the EMAIL binding: a verified sending domain on Workers Paid) ----------
+
+const hasEmail = env => !!(env.EMAIL && env.EMAIL_FROM);
+
+/** Emails a one-hour reset link. Always answers the same way, so it can't be used to find accounts. */
+async function emailReset(req, env, url) {
+  if (!hasEmail(env)) throw new HttpError(503, "Email reset isn't available yet.");
+  const email = checkEmail((await readJson(req)).email);
+  await limit(env, "mailip:" + ip(req), 10, 3600e3, "Too many reset emails from this connection. Try again in an hour.");
+  await limit(env, "mail:" + email, 3, 3600e3, "We've already sent a few reset emails. Check your inbox (and spam), or try again in an hour.");
+  const u = await byEmail(env, email, "id");
+  if (u) {
+    const token = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    await env.DB.prepare("INSERT INTO reset_tokens (token_hash, user_id, created) VALUES (?, ?, ?)").bind(await sha256(token), u.id, Date.now()).run();
+    const link = `${url.origin}/app#reset=${token}`; // a #fragment never reaches server logs
+    await env.EMAIL.send({
+      to: email, from: env.EMAIL_FROM, subject: "Reset your Shark Week Tracker password",
+      text: `Someone (hopefully you) asked to reset the password for this Shark Week Tracker account.\n\nReset it here (link works for 1 hour):\n${link}\n\nIf you still have your recovery code, use "Forgot password?" with the code instead — it keeps your logs. Resetting from this email starts your account fresh, because your old logs are encrypted with your old password.\n\nDidn't ask for this? Ignore this email; nothing changes.`,
+      html: `<p>Someone (hopefully you) asked to reset the password for this Shark Week Tracker account.</p><p><a href="${link}">Reset your password</a> (link works for 1 hour).</p><p>If you still have your <b>recovery code</b>, use <i>Forgot password?</i> with the code instead — it keeps your logs. Resetting from this email starts your account fresh, because your old logs are encrypted with your old password.</p><p>Didn't ask for this? Ignore this email; nothing changes.</p>`,
+    });
+  }
+  return json({ ok: true });
+}
+
+/** Checks an email reset link; returns its account. */
+async function resetToken(env, req, token) {
+  token = String(token || "");
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new HttpError(400, "That reset link isn't valid.");
+  await limit(env, "resetip:" + ip(req), 20, 3600e3, "Too many tries from this connection. Wait an hour and try again.");
+  const row = await env.DB.prepare("SELECT r.user_id, r.created, u.email FROM reset_tokens r JOIN users u ON u.id = r.user_id WHERE r.token_hash = ?").bind(await sha256(token)).first();
+  if (!row || Date.now() - row.created > RESET_TTL) throw new HttpError(400, "That reset link has expired or was already used. Ask for a new one.");
+  return row;
+}
+
+/** Sets a brand-new password and data key from an email link. Old logs (unreadable without the old key) are deleted. */
+async function emailResetConfirm(req, env) {
+  const b = await readJson(req, 16000);
+  const row = await resetToken(env, req, b.token);
+  const k = keyMaterial(b), rec = recMaterial(b), proof = await proofHash(env, keyProof(b.keyProof));
+  await rowsFor(env, row.user_id).restartWithNewKey({ ...k, authHash: await authHash(env, k.auth) }, { hash: await authHash(env, rec.auth), wrapped: rec.wrapped }, proof);
+  return json({ token: await newSession(env, req, row.user_id), email: row.email });
+}
+
 async function newRecovery(req, env, user, rows) {
   const b = await readJson(req);
   await checkCurrent(env, user, rows, b.current);
@@ -296,6 +396,13 @@ function keyMaterial(b) {
   if (!B64.test(wrapped) || wrapped.length < 40 || wrapped.length > 400) throw new HttpError(400, "Bad key data.");
   return { salt, iter, auth, wrapped };
 }
+
+function keyProof(v) {
+  const s = String(v || "");
+  if (!B64.test(s) || s.length !== 43) throw new HttpError(400, "Bad key data.");
+  return s;
+}
+const proofHash = (env, kp) => hmac(env.AUTH_PEPPER, "proof:" + kp);
 
 function recMaterial(b) {
   const auth = String(b.recAuth || ""), wrapped = String(b.wrappedRec || "");

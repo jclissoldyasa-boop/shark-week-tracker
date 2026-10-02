@@ -3,6 +3,8 @@
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+  <!-- Optional, granted by the person in Settings > Usage access: lets the app see when the screen was on or off to estimate sleep. -->
+  <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" xmlns:tools="http://schemas.android.com/tools" tools:ignore="ProtectedPermissions"/>
   <!-- Health data must not leave the phone through Android/Google backups: allowBackup off, and nothing included. -->
   <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:theme="@style/AppTheme"
       android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/no_backup"

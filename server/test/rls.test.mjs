@@ -7,17 +7,19 @@ const sql = [...src.matchAll(/(["`])((?:SELECT|INSERT|UPDATE|DELETE)\b[^"`]*)\1(
 let bad = 0, checked = 0;
 for (const q of sql) {
   const table = (q.match(/\b(?:FROM|INTO|UPDATE)\s+(\w+)/) || [])[1];
-  if (!["docs", "sessions", "users"].includes(table)) continue;
+  if (!["docs", "sessions", "users", "reset_tokens", "partner_shares"].includes(table)) continue;
   checked++;
   if (/^INSERT/.test(q) && !/ON CONFLICT[\s\S]*DO UPDATE/.test(q)) continue;
   let ok;
   if (table === "users") ok = /WHERE (id|email) = \?/.test(q);
-  else ok = /user_id = \?/.test(q) || /WHERE token_hash = \?/.test(q) || /WHERE last_seen < \?/.test(q);
-  if (/ON CONFLICT[\s\S]*DO UPDATE/.test(q)) ok = /DO UPDATE[\s\S]*WHERE docs\.user_id = \?/.test(q);
+  else ok = /user_id = \?/.test(q) || /WHERE (\w+\.)?token_hash = \?/.test(q) || /WHERE (last_seen|created) < \?/.test(q);
+  if (/ON CONFLICT[\s\S]*DO UPDATE/.test(q)) ok = /DO UPDATE[\s\S]*WHERE (docs|partner_shares)\.user_id = \?/.test(q);
+  if (table === "partner_shares" && /^SELECT data, updated FROM partner_shares WHERE id = \?$/.test(q)) ok = true; // public read by secret 132-bit id
   if (!ok) { bad++; console.error("NOT SCOPED TO A USER:", q); }
 }
 // Sessions by token hash: the token is a 256-bit secret, so looking it up is itself the access check.
-// "last_seen < ?" is the daily clean-up job, which deletes idle sessions of every user by design.
+// Reset tokens likewise (256-bit secret, only its hash is stored).
+// "last_seen < ?" / "created < ?" are the daily clean-up job, which deletes idle sessions of every user by design.
 if (checked < 15) { console.error(`Only found ${checked} statements — the checker is out of date.`); process.exit(1); }
 if (bad) process.exit(1);
 console.log(`RLS check: ${checked} statements on user tables, all scoped.`);

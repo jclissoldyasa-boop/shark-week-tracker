@@ -36,6 +36,7 @@ public class MainActivity extends Activity {
     static final String HOME = "https://" + HOST + "/app";
     private WebView web;
     private boolean loaded;
+    private String pendingAct; // e.g. "partner" from a reminder tap, run once the page has loaded
 
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -76,10 +77,27 @@ public class MainActivity extends Activity {
                 try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (ActivityNotFoundException ignored) {}
                 return true; // other sites (and tel: links) open outside the app
             }
-            @Override public void onPageFinished(WebView v, String url) { loaded = true; }
+            @Override public void onPageFinished(WebView v, String url) {
+                loaded = true;
+                if (pendingAct != null) { act(pendingAct); pendingAct = null; }
+            }
         });
+        pendingAct = actOf(getIntent());
         if (saved != null) web.restoreState(saved); else web.loadUrl(HOME);
     }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        String a = actOf(intent);
+        if (a != null) { if (loaded) act(a); else pendingAct = a; }
+    }
+
+    private static String actOf(Intent i) {
+        String a = i == null ? null : i.getStringExtra("act");
+        return a != null && a.matches("[a-z]{1,20}") ? a : null;
+    }
+
+    private void act(String a) { web.evaluateJavascript("window.swAction&&window.swAction('" + a + "')", null); }
 
     @Override protected void onResume() {
         super.onResume();
@@ -135,6 +153,19 @@ public class MainActivity extends Activity {
         @JavascriptInterface public String version() { return MainActivity.this.version(); }
         @JavascriptInterface public String versionCode() {
             try { return String.valueOf(getPackageManager().getPackageInfo(getPackageName(), 0).getLongVersionCode()); } catch (Exception e) { return "0"; }
+        }
+        @JavascriptInterface public boolean sleepAllowed() { return Sleep.allowed(MainActivity.this); }
+        @JavascriptInterface public String sleepNights(int days) { return Sleep.nights(MainActivity.this, Math.max(1, Math.min(days, 14))); }
+        @JavascriptInterface public void openUsageAccess() {
+            runOnUiThread(() -> {
+                try { startActivity(new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:" + getPackageName()))); }
+                catch (Exception e) { try { startActivity(new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)); } catch (Exception ignored) {} }
+            });
+        }
+        /** Opens Android's share sheet (SMS, WhatsApp, Messenger…) with a message the person can edit before sending. */
+        @JavascriptInterface public void share(String text) {
+            Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text);
+            runOnUiThread(() -> startActivity(Intent.createChooser(send, "Send the Shark Week heads-up")));
         }
         /** Opens an update download in the browser. Only our own site or our GitHub releases. */
         @JavascriptInterface public void openUrl(String url) {
