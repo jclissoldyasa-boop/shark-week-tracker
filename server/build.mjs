@@ -66,6 +66,9 @@ for (const [out, pages] of [[pub, webPages], [apk, apkPages]]) {
   for (const [name, html] of Object.entries(pages)) fs.writeFileSync(path.join(out, name), html);
 }
 fs.cpSync(path.join(root, "web"), pub, { recursive: true });
+// QR code for "Share Shark Week": scanning it opens the landing page (download + web app).
+const QRCode = (await import("qrcode")).default;
+fs.writeFileSync(path.join(pub, "qr.svg"), await QRCode.toString(`https://${site.host}/`, { type: "svg", margin: 2, errorCorrectionLevel: "M", color: { dark: "#07162A", light: "#FFFFFF" } }));
 
 // The latest Android build (from android/build.sh) is published at /download/SharkWeek.apk, and
 // /version.json tells installed apps and open web pages whether they're out of date.

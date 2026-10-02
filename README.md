@@ -47,7 +47,10 @@ publishes the APK and `/version.json`, pushes to GitHub and creates a release.
 - **Android app:** checks `/version.json` on start, on resume (every 6 h) and from *Me → Check for updates*.
   A newer version code shows an *Update* banner that downloads the APK; Android installs it over the old one
   (same signing key).
+- **Android, app closed:** `UpdateCheck` runs once a day (≈10:30) and posts one notification per new version;
+  tapping it downloads the APK. Android always asks before installing (sideloaded apps can't update silently).
 - **Web app:** each build carries a hash of the page; a different hash in `/version.json` shows *Reload*.
+- **Share:** *Me → Share Shark Week* / Health tab / landing page: share sheet + `/qr.svg` (built from `site.json` host).
 
 ## Encryption (zero-knowledge)
 1. On the device: `PBKDF2-SHA256(password, salt, 600k)` → HKDF → **login key** (sent) and **wrap key** (never sent).

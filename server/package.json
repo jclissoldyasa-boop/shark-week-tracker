@@ -9,6 +9,7 @@
     "test": "npm run build && node test/rls.test.mjs && node test/api.test.mjs"
   },
   "devDependencies": {
+    "qrcode": "^1.5.4",
     "wrangler": "^4.145.0"
   }
 }

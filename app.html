@@ -824,6 +824,24 @@ ACT.sleepOn = async () => {
 };
 ACT.openUsage = () => { NATIVE.openUsageAccess(); history.back(); };
 
+// =============================== share the app ===========================================
+const APP_URL = `${location.origin}/`;
+const SHARE_TEXT = `I've been using Shark Week Tracker for my cycle. It's free, private (end-to-end encrypted, no ads) and the charts are great. Get it for Android or use it on the web: ${APP_URL}`;
+ACT.shareApp = () => {
+  // Nothing personal goes in this message: it's the same for everyone.
+  modal(`<h2>Share Shark Week</h2><p class="muted">Send a friend the link, or let them scan this code with their phone camera.</p>
+    <img src="/qr.svg" alt="QR code linking to ${esc(APP_URL)}" width="220" height="220" style="display:block;margin:6px auto 14px;border-radius:12px;background:#fff">
+    <div class="code small" style="font-size:.85rem">${esc(APP_URL)}</div>
+    <div class="row wrapok" style="margin-top:12px"><button class="btn primary grow" data-act="shareAppSend">Send a link</button><button class="btn ghost grow" data-act="shareAppCopy">Copy link</button></div>`);
+};
+ACT.shareAppSend = async () => {
+  if (NATIVE && NATIVE.shareText) return NATIVE.shareText("Share Shark Week", SHARE_TEXT);
+  if (NATIVE && NATIVE.share) return NATIVE.share(SHARE_TEXT);
+  if (navigator.share) { try { await navigator.share({ title: "Shark Week Tracker", text: SHARE_TEXT.replace(APP_URL, "").trim(), url: APP_URL }); } catch {} return; }
+  ACT.shareAppCopy();
+};
+ACT.shareAppCopy = async () => { try { await navigator.clipboard.writeText(SHARE_TEXT); toast("Copied. Paste it into a message."); } catch { toast("Select the link above and copy it."); } };
+
 // =============================== partner heads-up ========================================
 // A private link (/partner#ID.KEY) shows the partner a playful, informative "Shark Week forecast".
 // The forecast is encrypted on this device with KEY, which only exists in the link, so the server
@@ -1297,6 +1315,7 @@ function viewGuide() {
     <li>Bleeding between periods, after sex, or after menopause</li><li>Cycles shorter than 21 or longer than 35 days, or no period for 3 months</li>
     <li>Feeling very low or anxious before periods (it could be PMDD, which is treatable)</li></ul>
     <p class="small" style="margin-top:10px">Talk to your GP or call <b>healthdirect</b> on <a href="tel:1800022222">1800 022 222</a> (24/7). Trusted info: <a href="https://www.jeanhailes.org.au" target="_blank" rel="noopener noreferrer">Jean Hailes for Women's Health</a>, <a href="https://www.healthdirect.gov.au/periods" target="_blank" rel="noopener noreferrer">healthdirect</a>. In an emergency call <b>000</b>.</p></section>
+  <button class="btn ghost block" data-act="shareApp" style="margin-bottom:14px">Share Shark Week with a friend</button>
   <p class="small muted center">Shark Week Tracker gives general information, not medical advice. It is not a contraceptive and is not intended to diagnose or treat any condition.</p>`;
 }
 
@@ -1320,6 +1339,8 @@ function viewMe() {
     <label class="check"><input type="checkbox" id="r_daily" ${r.daily ? "checked" : ""}><span>Daily reminder to log</span></label>
     ${st.fertile ? `<label class="check"><input type="checkbox" id="r_fertile" ${r.fertile ? "checked" : ""}><span>Remind me when my fertile window starts</span></label>` : ""}
     <label class="check"><input type="checkbox" id="r_discreet" ${r.discreet ? "checked" : ""}><span>Discreet notifications (no mention of periods)</span></label></section>` : ""}
+  <section class="card"><h2>Share Shark Week</h2><p class="small muted">Know someone who'd like a private, ad-free cycle tracker? Send them the link. They can download the Android app or use it on the web.</p>
+    <button class="btn primary block" data-act="shareApp">Share Shark Week with a friend</button></section>
   ${partnerSettings()}
   ${NATIVE && NATIVE.sleepNights ? `<section class="card"><h2>Sleep tracking</h2>
     <label class="check"><input type="checkbox" id="s_sleepAuto" ${st.sleepAuto ? "checked" : ""}><span>Estimate my sleep from when my phone screen is off</span></label>

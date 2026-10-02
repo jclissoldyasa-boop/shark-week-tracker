@@ -118,6 +118,9 @@ figcaption b { color: var(--text); display: block; }
 details { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 0 18px; margin-bottom: 10px; }
 summary { cursor: pointer; font-weight: 700; padding: 16px 0; list-style-position: outside; }
 details p { color: var(--muted); margin: 0 0 16px; }
+.share { display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: center; }
+@media (max-width: 700px) { .share { grid-template-columns: 1fr; } }
+.qr { width: 200px; height: 200px; border-radius: 18px; background: #fff; padding: 8px; border: 1px solid var(--line); }
 footer { padding: 40px 0 56px; color: var(--muted); font-size: .92rem; border-top: 1px solid var(--line); }
 footer .links { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 14px; }
 footer a { color: var(--text); }
@@ -234,6 +237,22 @@ footer a { color: var(--text); }
   </div>
 </section>
 
+<section aria-labelledby="tell">
+  <div class="wrap share">
+    <div>
+      <div class="kicker">Spread the word</div>
+      <h2 id="tell">Know someone who'd like it?</h2>
+      <p class="sub">Send them the link, or let them scan the code with their phone camera.</p>
+      <div class="ctas" style="margin-top:18px">
+        <a class="btn primary" id="shareBtn" href="https://wa.me/?text=Shark%20Week%20Tracker%3A%20a%20free%2C%20private%20cycle%20tracker%20https%3A%2F%2F{{HOST}}%2F" rel="noopener noreferrer">Share Shark Week</a>
+        <a class="btn outline" href="sms:?&amp;body=Shark%20Week%20Tracker%3A%20a%20free%2C%20private%20cycle%20tracker%20https%3A%2F%2F{{HOST}}%2F">Text a friend</a>
+        <a class="btn outline" href="mailto:?subject=Shark%20Week%20Tracker&amp;body=I%20thought%20you%27d%20like%20this%20free%2C%20private%20cycle%20tracker%3A%20https%3A%2F%2F{{HOST}}%2F">Email</a>
+      </div>
+    </div>
+    <img class="qr" src="/qr.svg" width="200" height="200" alt="QR code that opens this page">
+  </div>
+</section>
+
 <section aria-labelledby="faq">
   <div class="wrap">
     <div class="kicker">Questions</div>
@@ -255,5 +274,10 @@ footer a { color: var(--text); }
     <p>{{NAME}} provides general wellbeing information only. It is not medical advice, not a contraceptive and not a medical device. © {{OPERATOR}}, {{STATE}}, Australia.</p>
   </div>
 </footer>
+<script>
+// Use the phone's own share sheet when there is one; otherwise the button stays a WhatsApp link.
+const b = document.getElementById("shareBtn");
+if (navigator.share) b.addEventListener("click", e => { e.preventDefault(); navigator.share({ title: "Shark Week Tracker", text: "A free, private cycle tracker", url: location.origin + "/" }).catch(() => {}); });
+</script>
 </body>
 </html>

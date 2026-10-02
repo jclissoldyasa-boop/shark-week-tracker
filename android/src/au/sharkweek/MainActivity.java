@@ -82,6 +82,14 @@ public class MainActivity extends Activity {
                 if (pendingAct != null) { act(pendingAct); pendingAct = null; }
             }
         });
+        UpdateCheck.schedule(this);
+        // Ask once for notification permission (Android 13+): needed for update notices and reminders.
+        android.content.SharedPreferences prefs = getSharedPreferences("sw", MODE_PRIVATE);
+        if (Build.VERSION.SDK_INT >= 33 && !prefs.getBoolean("askedNotif", false)
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            prefs.edit().putBoolean("askedNotif", true).apply();
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 2);
+        }
         pendingAct = actOf(getIntent());
         if (saved != null) web.restoreState(saved); else web.loadUrl(HOME);
     }
@@ -163,9 +171,10 @@ public class MainActivity extends Activity {
             });
         }
         /** Opens Android's share sheet (SMS, WhatsApp, Messenger…) with a message the person can edit before sending. */
-        @JavascriptInterface public void share(String text) {
+        @JavascriptInterface public void share(String text) { shareText("Send the Shark Week heads-up", text); }
+        @JavascriptInterface public void shareText(String title, String text) {
             Intent send = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text);
-            runOnUiThread(() -> startActivity(Intent.createChooser(send, "Send the Shark Week heads-up")));
+            runOnUiThread(() -> startActivity(Intent.createChooser(send, title)));
         }
         /** Opens an update download in the browser. Only our own site or our GitHub releases. */
         @JavascriptInterface public void openUrl(String url) {
