@@ -59,6 +59,12 @@ a { color: var(--accent); }
 ul.kit { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 ul.kit li { background: var(--surface2); border-radius: 12px; padding: 10px; font-size: .92rem; }
 ul.kit li span { display: block; font-size: 1.4rem; }
+ul.wish { list-style: none; padding: 0; margin: 0; }
+ul.wish li { padding: 10px 0 10px 30px; border-bottom: 1px solid var(--line); position: relative; }
+ul.wish li:last-child { border-bottom: 0; }
+ul.wish li::before { position: absolute; left: 0; top: 9px; font-size: 1.05rem; }
+ul.wish.do li::before { content: "✅"; }
+ul.wish.dont li::before { content: "🚫"; }
 ol.rules { padding-left: 20px; margin: 0; }
 ol.rules li { margin-bottom: 8px; }
 .muted { color: var(--muted); } .small { font-size: .85rem; }
@@ -139,6 +145,10 @@ function render(f) {
   ${likely.length ? `<section class="card"><h2>What's likely on the radar</h2><p class="muted small">From ${who}'s own logs over recent cycles.</p>
     ${likely.map(x => `<div class="sym"><b>${esc(x.label)}</b><span class="pct">${x.pct}% of cycles · ${x.when === "before" ? "the days before" : "during"}</span>
       <div class="bar"><i style="width:${Math.min(100, x.pct)}%"></i></div><div class="help">${esc(HELP[x.k] || "Ask what helps, and do that.")}</div></div>`).join("")}</section>` : ""}
+  ${(f.dos || []).length ? `<section class="card"><h2>Do's 🍫</h2><p class="muted small">Straight from ${who}: what helps and what to bring.</p>
+    <ul class="wish do">${f.dos.map(x => `<li>${esc(x)}</li>`).join("")}</ul></section>` : ""}
+  ${(f.donts || []).length ? `<section class="card"><h2>Don'ts 🙅</h2><p class="muted small">Things that get on ${who}'s nerves this week. Steer clear.</p>
+    <ul class="wish dont">${f.donts.map(x => `<li>${esc(x)}</li>`).join("")}</ul></section>` : ""}
   ${f.phase ? `<section class="card"><h2>What's actually going on</h2><p class="muted" style="margin:0">${esc(PHASE[f.phase] || "")}</p></section>` : ""}
   <section class="card"><h2>The Shark Week survival kit</h2>
     <ul class="kit"><li><span>🔥</span>Heat pack</li><li><span>💊</span>Pain relief (ask first)</li><li><span>🍫</span>Snack stash</li><li><span>🫖</span>Tea & water</li><li><span>🛋️</span>Couch + remote</li><li><span>🧺</span>One less chore</li></ul></section>

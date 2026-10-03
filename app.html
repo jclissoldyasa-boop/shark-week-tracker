@@ -266,7 +266,7 @@ const LABEL = Object.fromEntries([...FLOWS, ...SYMPTOMS, ...MOODS, ...MUCUS, ...
 const DEFAULT_SETTINGS = { cycleLen: 28, periodLen: 5, luteal: 14, fertile: true, theme: "auto", palette: "coral",
   remind: { on: false, before: 2, hour: 9, discreet: true, fertile: false, daily: false }, secure: true,
   sleepAuto: false,
-  partner: { on: false, id: "", key: "", name: "", from: "", before: 2, symptoms: true, sentFor: "" } };
+  partner: { on: false, id: "", key: "", name: "", from: "", before: 2, symptoms: true, sentFor: "", dos: [], donts: [] } };
 
 // ---------- app state ----------
 const S = {
@@ -905,6 +905,8 @@ function forecast() {
   const f = { v: 1, name: pt.name || "", from: pt.from || "", updated: Date.now(), tracked: m.periods.length, avgPeriod: m.avgPeriod, avgCycle: m.avgCycle };
   if (m.last) Object.assign(f, { inPeriod: !!m.inPeriod, periodDay: m.inPeriod ? diff(t, m.last.start) + 1 : 0, nextStart: m.nextStart, daysUntil: diff(m.nextStart, t), late: Math.max(0, m.late), phase: m.phase });
   if (pt.symptoms) f.likely = likelySymptoms(m);
+  if (pt.dos.length) f.dos = pt.dos;
+  if (pt.donts.length) f.donts = pt.donts;
   return f;
 }
 const partnerLink = () => `${location.origin}/partner#${S.settings.partner.id}.${S.settings.partner.key}`;
@@ -925,12 +927,13 @@ function headsUpText() {
   const f = forecast(), pt = S.settings.partner, link = partnerLink();
   const syms = (f.likely || []).slice(0, 3).map(x => x.label.toLowerCase());
   const radar = syms.length ? ` On the radar: ${syms.join(", ")}.` : "";
+  const asks = f.dos ? ` Requests: ${f.dos.slice(0, 2).join(", ")}.` : "";
   let lead;
   if (f.inPeriod) lead = `🦈 Shark Week has made landfall (day ${f.periodDay}).`;
   else if (f.late > 0) lead = `🦈 Fin spotted. Shark Week could surface any day now.`;
   else if (f.daysUntil <= 1) lead = `🦈 Strap in: Shark Week makes landfall ${f.daysUntil <= 0 ? "today" : "tomorrow"}.`;
   else lead = `🦈 Shark Week forecast: landfall in about ${f.daysUntil} days. Strap in.`;
-  return `${pt.name ? pt.name + ", " + lead.charAt(0).toLowerCase() + lead.slice(1) : lead}${radar} Battle stations: heat pack, snacks, extra patience. Live forecast + how to help: ${link}`;
+  return `${pt.name ? pt.name + ", " + lead.charAt(0).toLowerCase() + lead.slice(1) : lead}${radar}${asks} Battle stations: heat pack, snacks, extra patience. Live forecast + how to help: ${link}`;
 }
 async function sendHeadsUp() {
   const text = headsUpText(), pt = S.settings.partner, m = model();
@@ -978,6 +981,8 @@ function partnerSettings() {
       <label class="field grow"><span>Your name (shown to them)</span><input type="text" id="p_from" maxlength="40" value="${esc(pt.from)}" placeholder="optional"></label></div>
       <div class="row"><label class="field grow"><span>Nudge me to tell them</span><select id="p_before">${[1, 2, 3, 5, 7].map(n => `<option value="${n}" ${pt.before === n ? "selected" : ""}>${plural(n, "day")} before</option>`).join("")}</select></label></div>
       <label class="check"><input type="checkbox" id="p_symptoms" ${pt.symptoms ? "checked" : ""}><span>Include my likely symptoms (from my logs)</span></label>
+      <label class="field"><span>Do's: what helps, snacks to bring (one per line)</span><textarea id="p_dos" maxlength="1200" placeholder="Bring chocolate&#10;Salt and vinegar chips&#10;Run me a bath">${esc(pt.dos.join("\n"))}</textarea></label>
+      <label class="field"><span>Don'ts: what gets on my nerves (one per line)</span><textarea id="p_donts" maxlength="1200" placeholder="Breathing loudly near me&#10;Asking &quot;what's for dinner?&quot;">${esc(pt.donts.join("\n"))}</textarea></label>
       <div class="code small" style="font-size:.75rem;text-align:left">${esc(partnerLink())}</div>
       <div class="row wrapok" style="margin-top:10px"><button class="btn primary grow" data-act="headsUp">Send heads-up now</button><button class="btn ghost grow" data-act="partnerCopy">Copy link</button><button class="btn ghost grow" data-act="partnerPreview">Preview</button></div>
       <p class="small muted" style="margin:8px 0 0">Anyone with the link can see the forecast. Switch this off any time and the link stops working.</p>` : ""}</section>`;
@@ -1419,7 +1424,8 @@ $("#app").addEventListener("change", async e => {
     if (k === "sleepAuto" && st.sleepAuto) { await saveDoc("settings", st); return ACT.sleepOn(); }
   } else if (id.startsWith("p_")) {
     const k = id.slice(2), el = e.target;
-    st.partner = { ...st.partner, [k]: el.type === "checkbox" ? el.checked : k === "before" ? +el.value : el.value.trim().slice(0, 40) };
+    const list = () => el.value.split("\n").map(x => x.trim().slice(0, 100)).filter(Boolean).slice(0, 12);
+    st.partner = { ...st.partner, [k]: el.type === "checkbox" ? el.checked : k === "before" ? +el.value : k === "dos" || k === "donts" ? list() : el.value.trim().slice(0, 40) };
     await saveDoc("settings", st); uploadForecast(true); pushReminders(); toast("Saved"); return;
   } else if (id === "partnerOn") { return;
   } else if (id.startsWith("r_")) {
