@@ -153,6 +153,18 @@ nav.tabs button[aria-current=page] { color: var(--accent); font-weight: 700; }
 .day.today { outline: 2px solid var(--text); outline-offset: -2px; font-weight: 800; }
 .day .dot { position: absolute; bottom: 5px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--muted); }
 .day.period .dot { background: var(--period-ink); }
+.day .cr { position: absolute; top: 6px; right: 7px; font-size: .72rem; line-height: 1; pointer-events: none; }
+.crrow { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); }
+.crrow b { font-size: .95rem; }
+.crrow input[type=text] { margin: 0; }
+.crbar { display: grid; grid-template-columns: 1.6em 1fr auto; gap: 2px 8px; align-items: center; padding: 5px 0; font-size: .93rem; }
+.crbar .bar { grid-column: 2 / -1; height: 6px; border-radius: 3px; background: var(--surface2); overflow: hidden; }
+.crbar .bar i { display: block; height: 100%; border-radius: 3px; }
+.crlog { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: center; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); padding: 10px 0; cursor: pointer; font: inherit; color: inherit; }
+.crlog:last-child { border-bottom: 0; }
+.crlog .e { font-size: 1.4rem; }
+.crlog .n { grid-column: 2 / -1; color: var(--muted); font-size: .88rem; }
+.ints { letter-spacing: 1px; color: var(--accent); font-size: .8rem; white-space: nowrap; }
 .editbar { background: var(--period); color: var(--period-ink); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; font-size: .9rem; }
 .editbar .btn { background: #fff; color: #000; padding: 8px 12px; min-height: 36px; }
 
@@ -262,11 +274,14 @@ const MUCUS = [["dry", "Dry"], ["sticky", "Sticky"], ["creamy", "Creamy"], ["wat
 const LIBIDO = [["low", "Low"], ["normal", "Normal"], ["high", "High"]];
 const EXERCISE = [["none", "None"], ["light", "Light"], ["moderate", "Moderate"], ["intense", "Intense"]];
 const MEDS = [["painrelief", "Pain relief"], ["iron", "Iron"], ["magnesium", "Magnesium"], ["vitd", "Vitamin D"], ["omega3", "Omega-3"], ["pill", "Contraceptive pill"]];
+const CRAVES = [["chocolate", "Chocolate", "🍫"], ["sweet", "Sweet", "🍬"], ["salty", "Salty", "🥨"], ["carbs", "Carbs", "🍞"], ["fried", "Fried/fatty", "🍟"],
+  ["savoury", "Savoury", "🧀"], ["spicy", "Spicy", "🌶️"], ["sour", "Sour", "🍋"], ["icecream", "Ice cream/dairy", "🍦"], ["fruit", "Fruit", "🍓"], ["drink", "Fizzy drink", "🥤"], ["other", "Other", "🍽️"]];
+const CRAVE = Object.fromEntries(CRAVES.map(([k, l, e]) => [k, { label: l, emoji: e }]));
 const LABEL = Object.fromEntries([...FLOWS, ...SYMPTOMS, ...MOODS, ...MUCUS, ...MEDS]);
 const DEFAULT_SETTINGS = { cycleLen: 28, periodLen: 5, luteal: 14, fertile: true, theme: "auto", palette: "coral",
   remind: { on: false, before: 2, hour: 9, discreet: true, fertile: false, daily: false }, secure: true,
   sleepAuto: false,
-  partner: { on: false, id: "", key: "", name: "", from: "", before: 2, symptoms: true, sentFor: "", dos: [], donts: [] } };
+  partner: { on: false, id: "", key: "", name: "", from: "", before: 2, symptoms: true, sentFor: "", dos: [], donts: [], cravings: true, alertStart: true, alerted: "" } };
 
 // ---------- app state ----------
 const S = {
@@ -649,8 +664,8 @@ function render() {
   if (!S.auth) return;
   applyTheme();
   $("#tabs").classList.remove("hidden");
-  $$("#tabs button").forEach(b => b.dataset.tab === S.tab ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
-  const views = { today: viewToday, calendar: viewCalendar, insights: viewInsights, guide: viewGuide, me: viewMe };
+  $$("#tabs button").forEach(b => b.dataset.tab === (S.tab === "cravings" ? "insights" : S.tab) ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
+  const views = { today: viewToday, calendar: viewCalendar, insights: viewInsights, guide: viewGuide, me: viewMe, cravings: viewCravings };
   $("#app").innerHTML = `<main class="wrap">${updateBar()}${views[S.tab]()}</main>`;
   setSync(S.sync.state, S.sync.msg);
   if (S.tab === "me") loadSessions();
@@ -741,14 +756,20 @@ function summary(log) {
   if (log.energy) out.push(`Energy ${log.energy}/5`);
   if (log.sleepAuto) out.push(`Slept ${durText(log.sleepAuto.min)}`); else if (log.sleep) out.push(`Slept ${log.sleep} h`);
   if (log.temp) out.push(`${log.temp} °C`);
+  for (const c of log.crave || []) out.push(`${CRAVE[c.t] ? CRAVE[c.t].emoji + " " + CRAVE[c.t].label : c.t} ${c.i}/5`);
   if (log.note) out.push("Note");
   return out;
 }
 async function setDay(day, patch) {
+  const before = "flow" in patch && periods().slice(-1)[0];
   const v = { ...(S.days[day] || {}), ...patch };
   for (const k of Object.keys(v)) if (v[k] === "" || v[k] == null || (Array.isArray(v[k]) && !v[k].length)) delete v[k];
   if (Object.keys(v).length) S.days[day] = v; else delete S.days[day];
   await saveDoc("day:" + day, v);
+  if ("flow" in patch) {
+    const after = periods().slice(-1)[0];
+    if (after && (!before || after.start !== before.start) && diff(today(), after.start) <= 1) periodStartedAlert(after.start);
+  }
 }
 ACT.periodStarted = async () => {
   const t = today();
@@ -905,9 +926,27 @@ function forecast() {
   const f = { v: 1, name: pt.name || "", from: pt.from || "", updated: Date.now(), tracked: m.periods.length, avgPeriod: m.avgPeriod, avgCycle: m.avgCycle };
   if (m.last) Object.assign(f, { inPeriod: !!m.inPeriod, periodDay: m.inPeriod ? diff(t, m.last.start) + 1 : 0, nextStart: m.nextStart, daysUntil: diff(m.nextStart, t), late: Math.max(0, m.late), phase: m.phase });
   if (pt.symptoms) f.likely = likelySymptoms(m);
+  if (pt.cravings) { const c = cravingIntel(); if (c) f.cravings = c; }
   if (pt.dos.length) f.dos = pt.dos;
   if (pt.donts.length) f.donts = pt.donts;
   return f;
+}
+/** Top craving types over the last 90 days (count × intensity), plus the latest one. Types only: notes stay private. */
+function cravingIntel() {
+  const from = addDays(today(), -90), agg = {};
+  let last = null;
+  for (const [d, v] of Object.entries(S.days)) {
+    if (d < from || !v.crave) continue;
+    for (const c of v.crave) {
+      const a = agg[c.t] = agg[c.t] || { k: c.t, n: 0, sum: 0 };
+      a.n++; a.sum += c.i;
+      if (!last || d > last.date || d === last.date && c.i > last.i) last = { k: c.t, i: c.i, date: d };
+    }
+  }
+  const top = Object.values(agg).sort((a, b) => b.sum - a.sum || b.n - a.n).slice(0, 4)
+    .map(a => ({ k: a.k, label: CRAVE[a.k] ? CRAVE[a.k].label : a.k, emoji: CRAVE[a.k] ? CRAVE[a.k].emoji : "🍽️", n: a.n, avg: Math.round(a.sum / a.n * 10) / 10 }));
+  if (!top.length) return null;
+  return { top, last: { ...last, label: CRAVE[last.k] ? CRAVE[last.k].label : last.k, emoji: CRAVE[last.k] ? CRAVE[last.k].emoji : "🍽️", ago: diff(today(), last.date) } };
 }
 const partnerLink = () => `${location.origin}/partner#${S.settings.partner.id}.${S.settings.partner.key}`;
 let lastForecast = "";
@@ -927,13 +966,14 @@ function headsUpText() {
   const f = forecast(), pt = S.settings.partner, link = partnerLink();
   const syms = (f.likely || []).slice(0, 3).map(x => x.label.toLowerCase());
   const radar = syms.length ? ` On the radar: ${syms.join(", ")}.` : "";
+  const craving = f.cravings ? ` Craving lately: ${f.cravings.top.slice(0, 3).map(x => x.label.toLowerCase()).join(", ")}.` : "";
   const asks = f.dos ? ` Requests: ${f.dos.slice(0, 2).join(", ")}.` : "";
   let lead;
   if (f.inPeriod) lead = `🦈 Shark Week has made landfall (day ${f.periodDay}).`;
   else if (f.late > 0) lead = `🦈 Fin spotted. Shark Week could surface any day now.`;
   else if (f.daysUntil <= 1) lead = `🦈 Strap in: Shark Week makes landfall ${f.daysUntil <= 0 ? "today" : "tomorrow"}.`;
   else lead = `🦈 Shark Week forecast: landfall in about ${f.daysUntil} days. Strap in.`;
-  return `${pt.name ? pt.name + ", " + lead.charAt(0).toLowerCase() + lead.slice(1) : lead}${radar}${asks} Battle stations: heat pack, snacks, extra patience. Live forecast + how to help: ${link}`;
+  return `${pt.name ? pt.name + ", " + lead.charAt(0).toLowerCase() + lead.slice(1) : lead}${radar}${craving}${asks} Battle stations: heat pack, snacks, extra patience. Live forecast + how to help: ${link}`;
 }
 async function sendHeadsUp() {
   const text = headsUpText(), pt = S.settings.partner, m = model();
@@ -954,6 +994,25 @@ function headsUpCard(m) {
   return `<section class="card" style="border-color:var(--period)"><h2>Strap in! 🦈</h2><p>${msg} Want to give ${who} a heads-up, with what to expect and how to help?</p>
     <div class="row"><button class="btn primary grow" data-act="headsUp">Send heads-up</button><button class="btn ghost" data-act="headsUpLater">Not now</button></div></section>`;
 }
+// Period just started: refresh the partner page now and offer a one-tap alert (they have no account to push to).
+let pendingAlert = "";
+function periodStartedAlert(start) {
+  const pt = S.settings.partner;
+  if (!pt.on) return;
+  uploadForecast(true);
+  if (!pt.alertStart || pt.alerted === start) return;
+  pendingAlert = start;
+  if ($("#sheet").classList.contains("hidden")) setTimeout(showStartAlert, 300); // otherwise shown when the log sheet closes
+}
+function showStartAlert() {
+  const start = pendingAlert; pendingAlert = "";
+  if (!start || !S.settings.partner.on || S.settings.partner.alerted === start) return;
+  const who = S.settings.partner.name ? esc(S.settings.partner.name) : "your partner";
+  modal(`<h2>🦈 Shark Week has landed</h2><p class="muted">Their forecast page already shows it. Want to send ${who} an alert now too?</p>
+    <div class="row"><button class="btn ghost grow" data-act="alertSkip" data-day="${start}">Not now</button><button class="btn primary grow" data-act="alertSend" data-day="${start}">Alert ${who}</button></div>`);
+}
+ACT.alertSend = async el => { S.settings.partner.alerted = el.dataset.day; history.back(); await sendHeadsUp(); };
+ACT.alertSkip = async el => { S.settings.partner.alerted = el.dataset.day; await saveDoc("settings", S.settings); history.back(); };
 ACT.headsUp = () => sendHeadsUp();
 ACT.headsUpLater = async () => { S.settings.partner.sentFor = model().nextStart; await saveDoc("settings", S.settings); render(); };
 ACT.partnerToggle = async el => {
@@ -981,6 +1040,8 @@ function partnerSettings() {
       <label class="field grow"><span>Your name (shown to them)</span><input type="text" id="p_from" maxlength="40" value="${esc(pt.from)}" placeholder="optional"></label></div>
       <div class="row"><label class="field grow"><span>Nudge me to tell them</span><select id="p_before">${[1, 2, 3, 5, 7].map(n => `<option value="${n}" ${pt.before === n ? "selected" : ""}>${plural(n, "day")} before</option>`).join("")}</select></label></div>
       <label class="check"><input type="checkbox" id="p_symptoms" ${pt.symptoms ? "checked" : ""}><span>Include my likely symptoms (from my logs)</span></label>
+      <label class="check"><input type="checkbox" id="p_alertStart" ${pt.alertStart ? "checked" : ""}><span>Prompt me to alert them the moment I mark my period started</span></label>
+      <label class="check"><input type="checkbox" id="p_cravings" ${pt.cravings ? "checked" : ""}><span>Include my top cravings (types only, notes stay private)</span></label>
       <label class="field"><span>Do's: what helps, snacks to bring (one per line)</span><textarea id="p_dos" maxlength="1200" placeholder="Bring chocolate&#10;Salt and vinegar chips&#10;Run me a bath">${esc(pt.dos.join("\n"))}</textarea></label>
       <label class="field"><span>Don'ts: what gets on my nerves (one per line)</span><textarea id="p_donts" maxlength="1200" placeholder="Breathing loudly near me&#10;Asking &quot;what's for dinner?&quot;">${esc(pt.donts.join("\n"))}</textarea></label>
       <div class="code small" style="font-size:.75rem;text-align:left">${esc(partnerLink())}</div>
@@ -1003,6 +1064,7 @@ function closeSheet() {
   flushNote();
   $("#sheet").classList.add("hidden"); document.body.style.overflow = "";
   render(); pushReminders();
+  if (pendingAlert) setTimeout(showStartAlert, 300);
   return true;
 }
 window.addEventListener("popstate", () => { closeSheet(); closeReport(); });
@@ -1034,6 +1096,7 @@ function renderSheet() {
   <div class="sec card"><h3>Symptoms</h3>${chipset("sym", SYMPTOMS, true, v)}
     <h3 style="margin-top:14px">Pain <span class="muted small" id="painv">${v.pain ? v.pain + "/10" : "none"}</span></h3>
     <input type="range" min="0" max="10" value="${v.pain || 0}" id="pain" aria-label="Pain from 0 to 10"></div>
+  ${craveCard(v)}
   <div class="sec card"><h3>Mood</h3>${chipset("mood", MOODS, true, v)}</div>
   <div class="sec card"><h3>Energy</h3><p class="small muted" style="margin:-4px 0 6px">1 = exhausted, 5 = full of beans</p>${scale("energy", 5, v)}
     <h3 style="margin-top:14px">Stress</h3><p class="small muted" style="margin:-4px 0 6px">1 = relaxed, 5 = very stressed</p>${scale("stress", 5, v)}</div>
@@ -1064,6 +1127,27 @@ ACT.chip = async el => {
   else $$(`[data-field="${f}"]`, $("#sheet")).forEach(b => b.setAttribute("aria-pressed", String(b.dataset.num ? +b.dataset.k : b.dataset.k) === String(val)));
   flashSaved();
 };
+function craveCard(v) {
+  const list = v.crave || [], has = k => list.some(c => c.t === k);
+  return `<div class="sec card"><div class="row between"><h3 style="margin:0">Cravings</h3><button class="link" data-act="craveHistory">History →</button></div>
+    <p class="small muted" style="margin:4px 0 8px">Tap what you're craving, then rate how strong it is.</p>
+    <div class="chips" role="group">${CRAVES.map(([k, l, e]) => `<button class="chip" aria-pressed="${has(k)}" data-act="crave" data-k="${k}">${e} ${esc(l)}</button>`).join("")}</div>
+    ${list.map(c => `<div class="crrow" style="margin-top:10px"><b>${CRAVE[c.t] ? CRAVE[c.t].emoji + " " + esc(CRAVE[c.t].label) : esc(c.t)}</b>
+      <p class="small muted" style="margin:0">Intensity (1 = mild, 5 = must have it now)</p>
+      <div class="scale" role="group">${[1, 2, 3, 4, 5].map(i => `<button class="chip" aria-pressed="${c.i === i}" data-act="craveI" data-k="${c.t}" data-i="${i}">${i}</button>`).join("")}</div>
+      <input type="text" id="cn_${c.t}" maxlength="120" value="${esc(c.n || "")}" placeholder="Note (optional), e.g. salt and vinegar chips" aria-label="Note for ${esc(CRAVE[c.t] ? CRAVE[c.t].label : c.t)} craving"></div>`).join("")}</div>`;
+}
+async function setCraves(fn) {
+  flushNote();
+  const v = S.days[sheetDay] || {}, list = fn((v.crave || []).map(c => ({ ...c })));
+  const sym = new Set(v.sym || []);
+  if (list.length) sym.add("cravings");
+  await setDay(sheetDay, { crave: list, sym: [...sym] });
+  const y = $("#sheet").scrollTop; renderSheet(); $("#sheet").scrollTop = y; flashSaved();
+}
+ACT.crave = el => setCraves(l => l.some(c => c.t === el.dataset.k) ? l.filter(c => c.t !== el.dataset.k) : [...l, { t: el.dataset.k, i: 3 }]);
+ACT.craveI = el => setCraves(l => l.map(c => c.t === el.dataset.k ? { ...c, i: +el.dataset.i } : c));
+ACT.craveHistory = () => { if (!$("#sheet").classList.contains("hidden")) ACT.closeSheet(); S.tab = "cravings"; render(); scrollTo(0, 0); };
 ACT.clearDay = async () => { delete S.days[sheetDay]; await saveDoc("day:" + sheetDay, {}); renderSheet(); flashSaved(); };
 function flashSaved() { const s = $("#saved"); if (s) { s.textContent = "Saved ✓"; clearTimeout(s._t); s._t = setTimeout(() => s.textContent = "", 1500); } }
 const NUMS = { sleep: [0, 24], temp: [34, 40], water: [0, 40], alcohol: [0, 40], caffeine: [0, 20] };
@@ -1074,6 +1158,11 @@ $("#sheet").addEventListener("input", e => {
 });
 $("#sheet").addEventListener("change", e => {
   const id = e.target.id;
+  if (id.startsWith("cn_")) {
+    const t = id.slice(3), n = e.target.value.trim().slice(0, 120), v = S.days[sheetDay] || {};
+    setDay(sheetDay, { crave: (v.crave || []).map(c => c.t === t ? { ...c, n: n || undefined } : c) }).then(flashSaved);
+    return;
+  }
   if (NUMS[id]) {
     const x = e.target.value === "" ? "" : +e.target.value;
     if (x !== "" && (isNaN(x) || x < NUMS[id][0] || x > NUMS[id][1])) { toast(`Enter a number from ${NUMS[id][0]} to ${NUMS[id][1]}.`); return; }
@@ -1107,14 +1196,16 @@ function viewCalendar() {
     if (inf.ov) { cls.push("ov"); desc.push("estimated ovulation"); }
     if (s === t) { cls.push("today"); desc.push("today"); }
     const dot = v && Object.keys(v).some(k => k !== "flow");
-    cells += `<button class="${cls.join(" ")}" data-act="calDay" data-day="${s}" aria-label="${esc(fmtLong(s))}${desc.length ? ", " + desc.join(", ") : ""}${dot ? ", has logs" : ""}">${d}${dot ? '<span class="dot"></span>' : ""}</button>`;
+    const cr = v && v.crave && v.crave.length ? v.crave.reduce((a, b) => b.i > a.i ? b : a) : null;
+    if (cr) desc.push("cravings: " + v.crave.map(c => (CRAVE[c.t] || { label: c.t }).label.toLowerCase()).join(", "));
+    cells += `<button class="${cls.join(" ")}" data-act="calDay" data-day="${s}" aria-label="${esc(fmtLong(s))}${desc.length ? ", " + desc.join(", ") : ""}${dot ? ", has logs" : ""}">${d}${cr ? `<span class="cr" aria-hidden="true">${CRAVE[cr.t] ? CRAVE[cr.t].emoji : "🍽️"}</span>` : ""}${dot ? '<span class="dot"></span>' : ""}</button>`;
   }
   return `${topbar("Calendar")}
   <section class="card">
     ${S.calEdit ? `<div class="editbar"><span class="grow">Tap days to mark or unmark them as period days.</span><button class="btn" data-act="calEdit">Done</button></div>` : ""}
     <div class="calhead"><button data-act="calMove" data-n="-1" aria-label="Previous month">‹</button><h2 style="margin:0">${MONTHS[mo - 1]} ${y}</h2><button data-act="calMove" data-n="1" aria-label="Next month">›</button></div>
     <div class="calgrid">${cells}</div>
-    <div class="legend" style="margin-top:12px"><span><i class="sw period"></i>Period</span><span><i class="sw pred"></i>Predicted period</span>${S.settings.fertile ? `<span><i class="sw fw"></i>Fertile window (est.)</span>` : ""}<span><i class="sw ov"></i>Ovulation (est.)</span></div>
+    <div class="legend" style="margin-top:12px"><span><i class="sw period"></i>Period</span><span><i class="sw pred"></i>Predicted period</span>${S.settings.fertile ? `<span><i class="sw fw"></i>Fertile window (est.)</span>` : ""}<span><i class="sw ov"></i>Ovulation (est.)</span><span>🍫 Craving</span></div>
   </section>
   <div class="row">${S.calEdit ? "" : `<button class="btn primary grow" data-act="calEdit">Edit period days</button>`}<button class="btn ghost grow" data-act="calToday">Today</button></div>`;
 }
@@ -1319,11 +1410,79 @@ function viewInsights() {
   ${cl.length ? chartCard("cl", "Cycle length", "Days from one period to the next. Shaded: the typical 21–35 day range.", bars(cl, { band: [21, 35], avg: m.avgCycle, unit: "d" }), ["Started", "Cycle (days)", "Period (days)"], clRows)
     : `<section class="card"><h2>Cycle length</h2><p class="muted">Appears after your second logged period.</p></section>`}
   ${chartCard("pl", "Period length", "Days of bleeding each period (spotting not counted).", bars(pl, { avg: m.avgPeriod, unit: "d", h: 150 }), ["Started", "Days"], m.periods.slice(-12).map(p => [fmt(p.start, { day: "numeric", month: "short", year: "numeric" }), p.len]))}
+  ${cravingsInsight(m)}
   ${chartCard("hm", "When symptoms happen", "How often each symptom shows up on each day of your cycle.", hm.svg, hm.cols, hm.rows)}
   ${chartCard("ln", "How you feel through your cycle", `Average ${METRICS[S.insight.metric][0].toLowerCase()} (${METRICS[S.insight.metric][1]}) by cycle day, smoothed over 3 days.`, seg + ln.svg, ln.cols, ln.rows)}
   ${chartCard("bbt", "Temperature", "Basal body temperature. A sustained rise usually means ovulation happened.", bb.svg, bb.cols, bb.rows)}
   <button class="btn ghost block" data-act="report">Summary for your doctor</button>`;
 }
+
+// =============================== UI: cravings history ====================================
+const CRAVE_PHASES = [["menstrual", "Period"], ["follicular", "Follicular"], ["ovulatory", "Ovulation (est.)"], ["luteal", "Luteal"]];
+function cravingsByPhase(m) {
+  const g = Object.fromEntries([...CRAVE_PHASES.map(p => p[0]), "none"].map(k => [k, { days: 0, n: 0, sum: 0, types: {} }])), all = [];
+  for (const d of Object.keys(S.days).sort().reverse()) {
+    const v = S.days[d]; if (!v.crave || !v.crave.length) continue;
+    const ph = (m.last && phaseOn(d, m)) || "none", b = g[ph];
+    b.days++;
+    for (const c of v.crave) {
+      b.n++; b.sum += c.i;
+      const t = b.types[c.t] = b.types[c.t] || { n: 0, sum: 0 }; t.n++; t.sum += c.i;
+      all.push({ d, ph, ...c });
+    }
+  }
+  return { g, all };
+}
+const dots = i => `<span class="ints" aria-label="intensity ${i} of 5">${"●".repeat(i)}${"○".repeat(5 - i)}</span>`;
+function phaseCravingCards(g, compact) {
+  const total = Object.values(g).reduce((a, b) => a + b.n, 0);
+  return CRAVE_PHASES.concat(g.none.n ? [["none", "Before tracking"]] : []).map(([k, name]) => {
+    const b = g[k], ph = PHASES[k], color = ph ? ph.color : "var(--muted)";
+    if (!b.n) return compact ? "" : `<section class="card"><div class="row between"><h2 style="margin:0">${esc(name)}</h2><span class="sw" style="background:${color};width:14px;height:14px"></span></div><p class="muted small" style="margin:6px 0 0">No cravings logged in this phase yet.</p></section>`;
+    const types = Object.entries(b.types).sort((a, c) => c[1].n - a[1].n || c[1].sum - a[1].sum).slice(0, compact ? 3 : 8), max = types[0][1].n;
+    const rows = types.map(([t, x]) => `<div class="crbar"><span aria-hidden="true">${CRAVE[t] ? CRAVE[t].emoji : "🍽️"}</span><span>${esc(CRAVE[t] ? CRAVE[t].label : t)}</span><span class="small muted">${x.n}× · avg ${(x.sum / x.n).toFixed(1)}/5</span>
+      <div class="bar"><i style="width:${Math.round(x.n / max * 100)}%;background:${color}"></i></div></div>`).join("");
+    return `<section class="card"><div class="row between"><h2 style="margin:0">${esc(name)}</h2><span class="sw" style="background:${color};width:14px;height:14px"></span></div>
+      <p class="small muted" style="margin:6px 0 8px">${plural(b.n, "craving")} on ${plural(b.days, "day")} · ${Math.round(b.n / total * 100)}% of all · avg intensity ${(b.sum / b.n).toFixed(1)}/5</p>${rows}</section>`;
+  }).join("");
+}
+function cravingsInsight(m) {
+  const { g } = cravingsByPhase(m), total = Object.values(g).reduce((a, b) => a + b.n, 0);
+  if (!total) return `<section class="card"><h2>Cravings</h2><p class="muted small">Log cravings from the day sheet (type, how strong, a note) to see when they hit in your cycle.</p><button class="btn ghost block" data-act="craveHistory">Cravings history</button></section>`;
+  const top = CRAVE_PHASES.filter(([k]) => g[k].n).sort((a, b) => g[b[0]].n - g[a[0]].n)[0];
+  return `<section class="card"><h2>Cravings by phase</h2>
+    ${top ? `<p class="small muted">Most of your cravings (${Math.round(g[top[0]].n / total * 100)}%) land in your <b>${esc(top[1].toLowerCase())}</b> phase.</p>` : ""}
+    ${CRAVE_PHASES.map(([k, name]) => { const b = g[k], t = Object.entries(b.types).sort((a, c) => c[1].n - a[1].n || c[1].sum - a[1].sum)[0];
+      return `<div class="crbar"><span class="sw" style="background:${PHASES[k].color};width:12px;height:12px"></span><span>${esc(name)}</span><span class="small muted">${b.n ? `${b.n}× · top: ${CRAVE[t[0]] ? CRAVE[t[0]].emoji + " " + esc(CRAVE[t[0]].label) : esc(t[0])}` : "none"}</span>
+        <div class="bar"><i style="width:${Math.round(b.n / total * 100)}%;background:${PHASES[k].color}"></i></div></div>`; }).join("")}
+    <button class="btn ghost block" style="margin-top:10px" data-act="craveHistory">Cravings history</button></section>`;
+}
+function viewCravings() {
+  const m = model(), { g, all } = cravingsByPhase(m);
+  const back = `<button class="link" data-act="craveBack">← Insights</button>`;
+  if (!all.length) return `${topbar("Cravings")}${back}<section class="card"><h2>No cravings yet</h2><p class="muted">Open today's log and tap what you're craving in the Cravings section. You can rate how strong it is and add a note.</p>
+    <button class="btn primary block" data-act="openLog" data-day="${today()}">Log a craving</button></section>`;
+  const shown = all.slice(0, S.craveAll ? all.length : 40);
+  let month = "", list = "";
+  for (const c of shown) {
+    const mo = c.d.slice(0, 7);
+    if (mo !== month) { if (month) list += "</section>"; month = mo; list += `<section class="card"><h2>${MONTHS[+mo.slice(5) - 1]} ${mo.slice(0, 4)}</h2>`; }
+    const ph = PHASES[c.ph];
+    list += `<button class="crlog" data-act="openLog" data-day="${c.d}"><span class="e" aria-hidden="true">${CRAVE[c.t] ? CRAVE[c.t].emoji : "🍽️"}</span>
+      <span><b>${esc(CRAVE[c.t] ? CRAVE[c.t].label : c.t)}</b> <span class="small muted">· ${esc(fmt(c.d))}${ph ? " · " + esc(ph.name) : ""}</span></span>${dots(c.i)}
+      ${c.n ? `<span class="n">${esc(c.n)}</span>` : ""}</button>`;
+  }
+  list += "</section>";
+  return `${topbar("Cravings")}${back}
+  <div class="stats"><div class="stat"><div class="l">Cravings logged</div><div class="v">${all.length}</div><div class="d">on ${plural(new Set(all.map(c => c.d)).size, "day")}</div></div>
+    <div class="stat"><div class="l">Average intensity</div><div class="v">${(all.reduce((a, c) => a + c.i, 0) / all.length).toFixed(1)}<span class="small">/5</span></div><div class="d">all time</div></div></div>
+  <h2 style="margin:16px 4px 8px">By cycle phase</h2>${phaseCravingCards(g)}
+  <h2 style="margin:16px 4px 8px">All cravings</h2>${list}
+  ${all.length > shown.length ? `<button class="btn ghost block" data-act="craveAll">Show all ${all.length}</button>` : ""}
+  <button class="btn primary block" style="margin-top:10px" data-act="openLog" data-day="${today()}">Log a craving today</button>`;
+}
+ACT.craveBack = () => { S.tab = "insights"; render(); scrollTo(0, 0); };
+ACT.craveAll = () => { S.craveAll = true; render(); };
 
 // doctor summary (printable)
 ACT.report = () => {
@@ -1466,9 +1625,9 @@ ACT.export = el => {
   let name, text, mime;
   if (el.dataset.k === "json") { name = `shark-week-export-${today()}.json`; mime = "application/json"; text = JSON.stringify({ exported: new Date().toISOString(), app: "Shark Week Tracker", settings: S.settings, days: Object.fromEntries(days.map(d => [d, S.days[d]])) }, null, 2); }
   else {
-    const cols = ["date", "flow", "symptoms", "mood", "pain", "energy", "stress", "sleep", "sleepQ", "fellAsleep", "wokeUp", "temp", "mucus", "ovt", "libido", "ex", "water", "alcohol", "caffeine", "meds", "note"];
+    const cols = ["date", "flow", "symptoms", "mood", "pain", "energy", "stress", "sleep", "sleepQ", "fellAsleep", "wokeUp", "temp", "mucus", "ovt", "libido", "ex", "water", "alcohol", "caffeine", "meds", "cravings", "note"];
     const q = v => { const s = Array.isArray(v) ? v.join("; ") : v == null ? "" : String(v); return /[",\n]/.test(s) || /^[=+\-@]/.test(s) ? `"${s.replace(/^([=+\-@])/, "'$1").replace(/"/g, '""')}"` : s; };
-    text = cols.join(",") + "\n" + days.map(d => { const v = S.days[d]; const sa = v.sleepAuto; return [d, v.flow, v.sym, v.mood, v.pain, v.energy, v.stress, v.sleep, v.sleepQ, sa ? new Date(sa.bed).toISOString() : "", sa ? new Date(sa.wake).toISOString() : "", v.temp, v.mucus, v.ovt, v.libido, v.ex, v.water, v.alcohol, v.caffeine, v.meds, v.note].map(q).join(","); }).join("\n");
+    text = cols.join(",") + "\n" + days.map(d => { const v = S.days[d]; const sa = v.sleepAuto; return [d, v.flow, v.sym, v.mood, v.pain, v.energy, v.stress, v.sleep, v.sleepQ, sa ? new Date(sa.bed).toISOString() : "", sa ? new Date(sa.wake).toISOString() : "", v.temp, v.mucus, v.ovt, v.libido, v.ex, v.water, v.alcohol, v.caffeine, v.meds, (v.crave || []).map(c => `${c.t} ${c.i}/5${c.n ? " (" + c.n + ")" : ""}`), v.note].map(q).join(","); }).join("\n");
     name = `shark-week-export-${today()}.csv`; mime = "text/csv";
   }
   if (NATIVE) { const r = NATIVE.saveFile(name, text, mime); toast(r || "Saved to Downloads"); return; }
